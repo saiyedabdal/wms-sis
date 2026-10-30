@@ -1,4 +1,4 @@
-export type Role = "admin" | "manager" | "ops" | "facility_staff";
+export type Role = "super_admin" | "admin" | "manager" | "ops" | "facility_staff";
 export type FacilityType = "warehouse" | "retailer" | "super_stockist" | "internal";
 export type Bucket = "sellable" | "display" | "in_use" | "damaged" | "quarantine";
 export type RequestStatus =

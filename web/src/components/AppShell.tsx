@@ -25,11 +25,21 @@ import {
   RiTruckLine,
 } from "@remixicon/react";
 import { supabaseBrowser } from "@/lib/supabase/client";
-import type { Facility, Profile } from "@/lib/types";
+import type { Facility, Profile, Role } from "@/lib/types";
 import { cx } from "./ui";
 
 /** Who is looking: Frido (admin / manager / ops), a retailer's staff, or a super stockist's staff. */
 export type Audience = "frido" | "retailer" | "ss";
+
+/** The screens a super admin can switch to. Only what is shown changes; their data access stays super admin. */
+export type View = "admin" | "manager" | "ops" | "retailer" | "ss";
+const VIEWS: { value: View; label: string; role: Role }[] = [
+  { value: "admin", label: "Admin", role: "super_admin" },
+  { value: "manager", label: "Manager", role: "manager" },
+  { value: "ops", label: "Frido ops", role: "ops" },
+  { value: "retailer", label: "Retailer", role: "facility_staff" },
+  { value: "ss", label: "Super stockist", role: "facility_staff" },
+];
 
 interface AppCtx {
   profile: Profile;
@@ -37,6 +47,9 @@ interface AppCtx {
   isOps: boolean;
   isAdmin: boolean;
   isManager: boolean;
+  isSuperAdmin: boolean;
+  /** The view a super admin picked; "admin" for everyone else. */
+  view: View;
   audience: Audience;
   /** Facility the user is working in (Frido can switch; staff are fixed to theirs). */
   facility: Facility | null;
@@ -117,22 +130,48 @@ export function AppShell({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const isAdmin = profile.role === "admin";
-  const isManager = isAdmin || profile.role === "manager";
-  const isOps = isManager || profile.role === "ops";
+  const isSuperAdmin = profile.role === "super_admin";
+  // the shell only renders in the browser (after the session check), so localStorage is safe to read here
+  const [view, setViewState] = useState<View>(() => {
+    if (!isSuperAdmin) return "admin";
+    try {
+      const saved = localStorage.getItem("wms.view");
+      if (VIEWS.some((v) => v.value === saved)) return saved as View;
+    } catch {}
+    return "admin";
+  });
+  const setView = (v: View) => {
+    setViewState(v);
+    try {
+      localStorage.setItem("wms.view", v);
+    } catch {}
+    // start each view from its Overview: the page open now may not exist in the other role's menu
+    if (pathname !== "/") router.push("/");
+  };
+
+  // everything below works off the role being viewed, so a super admin sees exactly what that role sees
+  const role = isSuperAdmin ? VIEWS.find((v) => v.value === view)!.role : profile.role;
+  const isAdmin = role === "super_admin" || role === "admin";
+  const isManager = isAdmin || role === "manager";
+  const isOps = isManager || role === "ops";
+  const canPickFacility = isOps || isSuperAdmin;
   const [open, setOpen] = useState(false);
-  const stockFacilities = useMemo(() => facilities.filter((f) => f.type !== "warehouse" && f.is_active), [facilities]);
-  const [facilityId, setFacilityIdState] = useState<number | null>(isOps ? null : profile.facility_id);
+  const stockFacilities = useMemo(() => {
+    const active = facilities.filter((f) => f.type !== "warehouse" && f.is_active);
+    if (isOps) return active;
+    return active.filter((f) => (view === "ss" ? f.type === "super_stockist" : f.type !== "super_stockist"));
+  }, [facilities, isOps, view]);
+  const [facilityId, setFacilityIdState] = useState<number | null>(canPickFacility ? null : profile.facility_id);
 
   useEffect(() => {
-    if (!isOps) return;
+    if (!canPickFacility) return;
     let saved: number | null = null;
     try {
       saved = Number(localStorage.getItem("wms.facility")) || null;
     } catch {}
     const valid = stockFacilities.find((f) => f.id === saved) ?? stockFacilities[0];
     setFacilityIdState(valid?.id ?? null);
-  }, [isOps, stockFacilities]);
+  }, [canPickFacility, stockFacilities]);
 
   const setFacilityId = (id: number) => {
     setFacilityIdState(id);
@@ -176,7 +215,7 @@ export function AppShell({
   const activeHref = ALL_HREFS.filter((h) => (h === "/" ? path === "/" : path === h || path.startsWith(h + "/"))).sort((a, b) => b.length - a.length)[0];
 
   return (
-    <Ctx.Provider value={{ profile, facilities, isOps, isAdmin, isManager, audience, facility, setFacilityId, reloadFacilities }}>
+    <Ctx.Provider value={{ profile, facilities, isOps, isAdmin, isManager, isSuperAdmin, view, audience, facility, setFacilityId, reloadFacilities }}>
       <div className="min-h-screen md:flex">
         <aside
           className={cx(
@@ -238,7 +277,10 @@ export function AppShell({
           </nav>
           <div className="border-t border-white/10 p-4">
             <p className="truncate text-sm font-medium">{profile.full_name || profile.email}</p>
-            <p className="text-xs capitalize text-n700">{profile.role.replace("_", " ")}</p>
+            <p className="text-xs capitalize text-n700">
+              {profile.role.replace("_", " ")}
+              {isSuperAdmin && view !== "admin" && ` · viewing as ${VIEWS.find((v) => v.value === view)!.label.toLowerCase()}`}
+            </p>
             <button onClick={signOut} className="mt-3 flex items-center gap-2 text-xs text-n600 hover:text-white">
               <RiLogoutBoxRLine size={14} /> Sign out
             </button>
@@ -251,11 +293,32 @@ export function AppShell({
             <button className="md:hidden" onClick={() => setOpen(true)} aria-label="Open menu">
               <RiMenuLine />
             </button>
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-n800">Facility</span>
-            {isOps ? (
+            {isSuperAdmin && (
+              <>
+                <span className="hidden text-[11px] font-semibold uppercase tracking-wider text-n800 sm:inline">View as</span>
+                <select
+                  value={view}
+                  onChange={(e) => setView(e.target.value as View)}
+                  aria-label="View as"
+                  className={cx(
+                    "h-9 min-w-0 max-w-[40vw] rounded-xs border px-2 text-sm font-medium focus:border-ink focus:outline-none",
+                    view === "admin" ? "border-n500 bg-white" : "border-ink bg-yellow",
+                  )}
+                >
+                  {VIEWS.map((v) => (
+                    <option key={v.value} value={v.value}>
+                      {v.label}
+                    </option>
+                  ))}
+                </select>
+              </>
+            )}
+            <span className="hidden text-[11px] font-semibold uppercase tracking-wider text-n800 sm:inline">Facility</span>
+            {canPickFacility && stockFacilities.length > 0 ? (
               <select
                 value={facilityId ?? ""}
                 onChange={(e) => setFacilityId(Number(e.target.value))}
+                aria-label="Facility"
                 className="h-9 min-w-0 max-w-[60vw] rounded-xs border border-n500 bg-white px-2 text-sm font-medium focus:border-ink focus:outline-none"
               >
                 {stockFacilities.map((f) => (
@@ -265,13 +328,26 @@ export function AppShell({
                 ))}
               </select>
             ) : (
-              <span className="truncate text-sm font-semibold">{facility ? `${facility.name} · ${facility.code}` : "No facility assigned"}</span>
+              <span className="truncate text-sm font-semibold">{facility ? `${facility.name} · ${facility.code}` : "No facility"}</span>
             )}
           </header>
+          {isSuperAdmin && view !== "admin" && (
+            <div className="no-print flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-y75 bg-y50 px-5 py-2 text-sm md:px-8">
+              <span>
+                You&apos;re seeing the <span className="font-semibold">{VIEWS.find((v) => v.value === view)!.label}</span> screens
+                {facility && !isOps ? ` for ${facility.name}` : ""}. Anything you do is still saved under your own login.
+              </span>
+              <button onClick={() => setView("admin")} className="font-semibold underline">
+                Back to admin view
+              </button>
+            </div>
+          )}
           <main className="mx-auto max-w-7xl px-5 py-8 md:px-8">
             {!isOps && !facility ? (
               <div className="rounded-lg border border-y75 bg-y50 p-6 text-sm">
-                Your login is not linked to a facility yet. Ask an admin to assign you on the Users page.
+                {isSuperAdmin
+                  ? `There is no active ${view === "ss" ? "super stockist" : "retailer or store"} facility yet. Create one under Facilities in the admin view, then come back.`
+                  : "Your login is not linked to a facility yet. Ask an admin to assign you on the Users page."}
               </div>
             ) : (
               children

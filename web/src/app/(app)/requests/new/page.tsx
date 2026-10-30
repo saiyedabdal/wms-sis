@@ -33,6 +33,8 @@ export default function NewRequestPage() {
       p_warehouse_id: null as unknown as number,
       p_notes: (notes || null) as string,
       p_lines: toPayload(lines),
+      // a super admin in the retailer / SS view submits like the facility would
+      p_submit: !isOps,
     });
     setBusy(false);
     if (error) return setErr(errMsg(error));

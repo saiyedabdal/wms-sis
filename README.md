@@ -36,6 +36,7 @@ Every movement is a row in `stock_ledger` (receipt, sale, count adjustment, buck
 
 ## Users and roles
 
+- **Super admin** – everything an admin can do, plus a **View as** switch in the header (Admin, Manager, Frido ops, Retailer, Super stockist) to see exactly what that role sees for a chosen facility. Only what is shown changes: anything done in another view is saved under the super admin's own login. Only a super admin can make, change or get a sign-in link for another super admin
 - **Admin** – everything, plus user management
 - **Manager** – approves requests (currently Shernyl Rana)
 - **Ops** – all facilities: review requests, dispatch, facilities, item master, quarantine decisions

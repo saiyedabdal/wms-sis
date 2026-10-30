@@ -374,7 +374,7 @@ function AssignedOps({ facilityId }: { facilityId: number }) {
 
   const load = async () => {
     const [{ data: p }, { data: a }] = await Promise.all([
-      sb.from("profiles").select("id,full_name,email,role").in("role", ["ops", "manager", "admin"]).eq("is_active", true).order("full_name"),
+      sb.from("profiles").select("id,full_name,email,role").in("role", ["ops", "manager", "admin", "super_admin"]).eq("is_active", true).order("full_name"),
       sb.from("facility_ops").select("user_id").eq("facility_id", facilityId),
     ]);
     setPeople(p ?? []);

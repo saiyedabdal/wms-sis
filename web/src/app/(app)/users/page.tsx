@@ -13,7 +13,10 @@ const ROLES: { value: Role; label: string }[] = [
   { value: "ops", label: "Frido ops" },
   { value: "manager", label: "Manager (approves requests)" },
   { value: "admin", label: "Admin" },
+  { value: "super_admin", label: "Super admin (can switch views)" },
 ];
+// new logins get any role but super admin; a super admin promotes someone from the table instead
+const NEW_LOGIN_ROLES = ROLES.filter((r) => r.value !== "super_admin");
 
 /** Calls the admin-create-user Edge Function; non-2xx responses carry the reason in the JSON body. */
 async function adminUsers(body: Record<string, unknown>) {
@@ -30,6 +33,7 @@ async function adminUsers(body: Record<string, unknown>) {
 
 export default function UsersPage() {
   const { facilities, profile: me } = useApp();
+  const meSuper = me.role === "super_admin";
   const stockFacilities = facilities.filter((f) => f.type !== "warehouse");
   const [users, setUsers] = useState<Profile[]>([]);
   const [form, setForm] = useState({ full_name: "", email: "", role: "facility_staff" as Role, facility_id: String(stockFacilities[0]?.id ?? "") });
@@ -125,7 +129,7 @@ export default function UsersPage() {
             </Field>
             <Field label="Role">
               <Select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value as Role })}>
-                {ROLES.map((r) => (
+                {NEW_LOGIN_ROLES.map((r) => (
                   <option key={r.value} value={r.value}>
                     {r.label}
                   </option>
@@ -163,47 +167,51 @@ export default function UsersPage() {
               </tr>
             </thead>
             <tbody>
-              {users.map((u) => (
-                <tr key={u.id}>
-                  <Td>
-                    <div className="font-medium">{u.full_name}</div>
-                    <div className="text-xs text-n800">{u.email}</div>
-                  </Td>
-                  <Td>
-                    <Select value={u.role} disabled={u.id === me.id} onChange={(e) => update(u.id, { role: e.target.value as Role })} className="h-9 w-52">
-                      {ROLES.map((r) => (
-                        <option key={r.value} value={r.value}>
-                          {r.label}
-                        </option>
-                      ))}
-                    </Select>
-                  </Td>
-                  <Td>
-                    <Select value={u.facility_id ?? ""} onChange={(e) => update(u.id, { facility_id: Number(e.target.value) || null })} className="h-9 w-48">
-                      <option value="">—</option>
-                      {stockFacilities.map((f) => (
-                        <option key={f.id} value={f.id}>
-                          {f.name}
-                        </option>
-                      ))}
-                    </Select>
-                  </Td>
-                  <Td>
-                    <div className="flex items-center gap-2">
-                      <Button variant="ghost" size="sm" disabled={busy === u.id} onClick={() => getLink(u)} title="One-time link to set a password">
-                        <RiLinkM size={14} /> {busy === u.id ? "…" : "Sign-in link"}
-                      </Button>
-                      {u.id === me.id ? (
-                        <Badge tone="green">you</Badge>
-                      ) : (
-                        <Button variant={u.is_active ? "ghost" : "primary"} size="sm" onClick={() => update(u.id, { is_active: !u.is_active })}>
-                          {u.is_active ? "Deactivate" : "Activate"}
+              {users.map((u) => {
+                // only a super admin can change, deactivate or get a link for a super admin
+                const locked = u.role === "super_admin" && !meSuper;
+                return (
+                  <tr key={u.id}>
+                    <Td>
+                      <div className="font-medium">{u.full_name}</div>
+                      <div className="text-xs text-n800">{u.email}</div>
+                    </Td>
+                    <Td>
+                      <Select value={u.role} disabled={u.id === me.id || locked} onChange={(e) => update(u.id, { role: e.target.value as Role })} className="h-9 w-52">
+                        {ROLES.filter((r) => r.value !== "super_admin" || meSuper || u.role === "super_admin").map((r) => (
+                          <option key={r.value} value={r.value}>
+                            {r.label}
+                          </option>
+                        ))}
+                      </Select>
+                    </Td>
+                    <Td>
+                      <Select value={u.facility_id ?? ""} disabled={locked} onChange={(e) => update(u.id, { facility_id: Number(e.target.value) || null })} className="h-9 w-48">
+                        <option value="">—</option>
+                        {stockFacilities.map((f) => (
+                          <option key={f.id} value={f.id}>
+                            {f.name}
+                          </option>
+                        ))}
+                      </Select>
+                    </Td>
+                    <Td>
+                      <div className="flex items-center gap-2">
+                        <Button variant="ghost" size="sm" disabled={busy === u.id || locked} onClick={() => getLink(u)} title="One-time link to set a password">
+                          <RiLinkM size={14} /> {busy === u.id ? "…" : "Sign-in link"}
                         </Button>
-                      )}
-                    </div>
-                  </Td>
-                </tr>
-              ))}
+                        {u.id === me.id ? (
+                          <Badge tone="green">you</Badge>
+                        ) : locked ? null : (
+                          <Button variant={u.is_active ? "ghost" : "primary"} size="sm" onClick={() => update(u.id, { is_active: !u.is_active })}>
+                            {u.is_active ? "Deactivate" : "Activate"}
+                          </Button>
+                        )}
+                      </div>
+                    </Td>
+                  </tr>
+                );
+              })}
             </tbody>
           </Table>
         </Card>

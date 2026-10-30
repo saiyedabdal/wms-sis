@@ -1844,6 +1844,7 @@ export type Database = {
           p_facility_id: number
           p_lines: Json
           p_notes: string
+          p_submit?: boolean
           p_warehouse_id: number
         }
         Returns: number
@@ -1902,6 +1903,7 @@ export type Database = {
       is_admin: { Args: never; Returns: boolean }
       is_manager: { Args: never; Returns: boolean }
       is_ops: { Args: never; Returns: boolean }
+      is_super_admin: { Args: never; Returns: boolean }
       move_stock: {
         Args: {
           p_facility_id: number
@@ -2018,7 +2020,7 @@ export type Database = {
         | "cancelled"
       shipment_status: "in_transit" | "received"
       stock_bucket: "sellable" | "display" | "in_use" | "damaged" | "quarantine"
-      user_role: "admin" | "manager" | "ops" | "facility_staff"
+      user_role: "super_admin" | "admin" | "manager" | "ops" | "facility_staff"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -2194,7 +2196,7 @@ export const Constants = {
       ],
       shipment_status: ["in_transit", "received"],
       stock_bucket: ["sellable", "display", "in_use", "damaged", "quarantine"],
-      user_role: ["admin", "manager", "ops", "facility_staff"],
+      user_role: ["super_admin", "admin", "manager", "ops", "facility_staff"],
     },
   },
 } as const

@@ -88,6 +88,12 @@ Deno.serve(async (req) => {
 
     if (body.action === "link") {
       if (!body.user_id) return json({ error: "user_id is required" }, 400);
+      // a sign-in link is a way into that account, so only a super admin gets one for a super admin
+      const { data: target } = await admin.from("profiles").select("role").eq("id", body.user_id).single();
+      if (target?.role === "super_admin") {
+        const { data: isSuper } = await caller.rpc("is_super_admin");
+        if (!isSuper) return json({ error: "Only a super admin can get a link for a super admin" }, 403);
+      }
       const { data, error } = await admin.auth.admin.getUserById(body.user_id);
       if (error || !data.user?.email) return json({ error: error?.message ?? "User not found" }, 404);
       return json({ ok: true, link: await signInLink(data.user.email) });
