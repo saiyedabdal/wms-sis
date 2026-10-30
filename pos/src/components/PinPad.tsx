@@ -11,7 +11,7 @@ const roleLabel = { cashier: "Cashier", manager: "Manager", admin: "Frido admin"
  * Pick a person, type their 4–6 digit PIN. Used for the staff switch, manager approvals and admin overrides.
  * onSubmit returns an error message (wrong PIN, locked) or null when accepted.
  */
-export function PinPad({ open, title, subtitle, staff, onSubmit, onClose, children, submitLabel = "Enter", dismissable = true, canSubmit = true }: {
+export function PinPad({ open, title, subtitle, staff, onSubmit, onClose, children, submitLabel = "Enter", dismissable = true, canSubmit = true, emptyText }: {
   open: boolean;
   title: string;
   subtitle?: ReactNode;
@@ -22,6 +22,8 @@ export function PinPad({ open, title, subtitle, staff, onSubmit, onClose, childr
   submitLabel?: string;
   dismissable?: boolean;
   canSubmit?: boolean;
+  /** shown when nobody in `staff` can do this */
+  emptyText?: ReactNode;
 }) {
   const [who, setWho] = useState<string | null>(null);
   const [pin, setPin] = useState("");
@@ -43,7 +45,8 @@ export function PinPad({ open, title, subtitle, staff, onSubmit, onClose, childr
     setBusy(false);
     if (e) { setErr(e); setPin(""); }
   };
-  const press = (d: string) => { setErr(null); setPin((p) => (p.length < 6 ? p + d : p)); };
+  // digits only count once a person is picked, so the dots never fill while Enter stays off
+  const press = (d: string) => { if (!who) return; setErr(null); setPin((p) => (p.length < 6 ? p + d : p)); };
 
   useEffect(() => {
     if (!open) return;
@@ -62,7 +65,7 @@ export function PinPad({ open, title, subtitle, staff, onSubmit, onClose, childr
       {subtitle && <div className="mb-4 text-sm text-n900">{subtitle}</div>}
       {children}
       {staff.length === 0 ? (
-        <Alert tone="yellow">Nobody here can do this. A Frido admin needs to add them to the POS staff list.</Alert>
+        <Alert tone="yellow">{emptyText ?? "Nobody on this clinic's POS staff list can do this. A Frido admin adds people under Admin → Staff & PINs."}</Alert>
       ) : (
         <div className="mb-3 flex flex-wrap gap-2">
           {staff.map((s) => (
@@ -83,6 +86,7 @@ export function PinPad({ open, title, subtitle, staff, onSubmit, onClose, childr
       )}
 
       <div className="mx-auto max-w-xs">
+        {staff.length > 0 && !who && <p className="mb-1 text-center text-sm font-semibold text-y500">Tap your name above, then enter your PIN</p>}
         <div className="mb-2 flex h-8 items-center justify-center gap-3" aria-label={`${pin.length} digits entered`}>
           {Array.from({ length: Math.max(4, pin.length) }).map((_, i) => (
             <span key={i} className={cx("h-3.5 w-3.5 rounded-full", i < pin.length ? "bg-ink" : "bg-n400")} />

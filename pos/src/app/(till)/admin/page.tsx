@@ -189,7 +189,7 @@ function AddStaff() {
   return (
     <div className="mt-6 border-t border-n300 pt-4">
       <h3 className="mb-1 font-semibold">Add a person</h3>
-      <p className="mb-3 text-xs text-n800">Clinic staff need a Partner Hub login assigned to {ctx?.facility?.name ?? "this clinic"} first (Hub → Users). Frido super admins, admins and managers join as POS admins who can approve above the manager limit and late returns.</p>
+      <p className="mb-3 text-xs text-n800">Clinic staff need a Partner Hub login assigned to {ctx?.facility?.name ?? "this clinic"} first (Hub → Users). Frido super admins, admins and managers join as POS admins: they can open the till and sell, and approve above the manager limit and late returns.</p>
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Partner Hub user">
           <Select value={who} onChange={(e) => { setWho(e.target.value); setName(""); }}>

@@ -161,7 +161,7 @@ Tablet landscape first (1280×800), with desktop and phone layouts. Frido Design
 | # | Screen | Layout and key actions | Empty, error and edge states |
 |---|---|---|---|
 | 1 | **Login** (`/login`) | Black brand panel + email/password form | Wrong credentials message. OTP login is not built; it uses Hub accounts like the Hub does |
-| 1b | **PIN switch** (modal) | Staff tiles (initial, role) + 3×4 keypad + dots; physical keyboard works | Wrong PIN shows tries left; 5 wrong locks for 5 minutes; "no PIN set" shown on the tile |
+| 1b | **PIN switch** (modal) | Staff tiles (clinic managers and cashiers first, then Frido admins, who can also open the till and sell) + 3×4 keypad + dots; physical keyboard works; "Tap your name above" until a person is picked | Wrong PIN shows tries left; 5 wrong locks for 5 minutes; "no PIN set" shown on the tile |
 | – | Facility / till pickers | Shown only when the device user can see several clinics, or the clinic has several tills; the device remembers its till | "Clinic not on the POS yet" with a link to Setup for Frido ops |
 | 2 | **Open shift** | Opening float input + quick amounts | Shown whenever the till has no open shift |
 | 3 | **Sell** (`/`) | Left: scan/search field (keyboard-wedge focus trap; camera button with ZXing), category chips, product grid (photo, size/colour, MSP, stock badge). Right: cart (customer chip, referred-by select, lines with qty stepper, line discount link, MRP shown only if real), bill discount, totals, yellow **Charge ₹X** | Empty cart prompt; unknown barcode toast; out-of-stock and not-sale-ready (no MSP/HSN/GST) blocked with a reason; offline banner with Charge disabled while the cart is kept |

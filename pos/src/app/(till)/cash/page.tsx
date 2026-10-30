@@ -199,8 +199,8 @@ export default function CashPage() {
         {err && <Alert className="mt-4">{err}</Alert>}
       </Modal>
 
-      <PinPad open={needPin} onClose={() => setNeedPin(false)} staff={(ctx?.staff ?? []).filter((s) => s.pos_role === "manager")}
-        title="Manager PIN" subtitle={form === "close" ? "Closing the day is done by a manager." : "Petty cash and bank deposits are recorded by a manager."}
+      <PinPad open={needPin} onClose={() => setNeedPin(false)} staff={(ctx?.staff ?? []).filter((s) => s.pos_role !== "cashier")}
+        title="Manager PIN" subtitle={form === "close" ? "Closing the day is done by a manager or a Frido admin." : "Petty cash and bank deposits are recorded by a manager or a Frido admin."}
         onSubmit={async (uid, p) => {
           const r = await call<{ ok: boolean; error?: string } & StaffSession>("pos_pin_login", { p_facility_id: facilityId, p_register_id: register.id, p_user_id: uid, p_pin: p });
           if (!r.ok) return r.error ?? "Wrong PIN";

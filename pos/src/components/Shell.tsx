@@ -190,7 +190,11 @@ export function Shell({ children }: { children: ReactNode }) {
       <PinPad open={needStaff || switching} dismissable={!needStaff} onClose={() => setSwitching(false)}
         title={needStaff ? "Who's at the till?" : "Switch staff"}
         subtitle={needStaff ? <>Every sale is recorded against the person who makes it. Pick your name and enter your PIN.</> : "The next sale will be recorded against the person who signs in."}
-        staff={ctx.staff.filter((s) => s.pos_role !== "admin")}
+        staff={ctx.staff}
+        emptyText={ctx.user.is_ops
+          ? <>Nobody is on {ctx.facility?.name ?? "this clinic"}&apos;s POS staff list yet.{" "}
+              <button type="button" className="font-semibold underline" onClick={() => router.push("/admin/")}>Add people in Admin → Staff &amp; PINs</button></>
+          : <>You&apos;re not on this clinic&apos;s POS staff list yet. Ask a Frido admin to add you under Admin → Staff &amp; PINs.</>}
         onSubmit={async (u, p) => { const e = await switchStaff(u, p); if (!e) setSwitching(false); return e; }}>
         {needStaff && <div className="-mt-2 mb-3 text-xs text-n800">Device signed in as {ctx.user.email}.</div>}
       </PinPad>
