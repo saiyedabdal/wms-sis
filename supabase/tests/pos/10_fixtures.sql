@@ -36,6 +36,8 @@ grant execute on all functions in schema tests to authenticated, anon, service_r
 
 -- ---------------------------------------------------------------- users (first signup becomes the Hub admin)
 insert into auth.users (email, raw_user_meta_data) values ('admin@frido.test', '{"full_name": "Frido Admin"}');
+-- live Frido admins are super admins (migration 20261031000010)
+update public.profiles set role = 'super_admin' where email = 'admin@frido.test';
 insert into auth.users (email, raw_user_meta_data) values
   ('cashier@neu.test', '{"full_name": "Asha Cashier"}'),
   ('manager@neu.test', '{"full_name": "Rohan Manager"}'),

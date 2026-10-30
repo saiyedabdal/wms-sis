@@ -1403,8 +1403,8 @@ begin
   select * into v_profile from public.profiles where id = p_user_id and is_active;
   if not found then raise exception 'That user is not an active Partner Hub user' using errcode = 'P0001'; end if;
   if p_pos_role = 'admin' then
-    if v_profile.role not in ('admin', 'ops', 'manager') then
-      raise exception 'POS admins must be Frido admin, ops or manager users' using errcode = 'P0001';
+    if v_profile.role not in ('super_admin', 'admin', 'ops', 'manager') then
+      raise exception 'POS admins must be Frido super admin, admin, ops or manager users' using errcode = 'P0001';
     end if;
     p_facility_id := null;
   elsif v_profile.facility_id is distinct from p_facility_id then
