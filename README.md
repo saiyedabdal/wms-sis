@@ -51,12 +51,13 @@ npm run dev
 
 Open http://localhost:3000, create your account (becomes admin), then: Facilities → Neuromatics → add SKUs and MSPs → Stock count to load the opening stock delivered on 27 Oct → New request.
 
-## Deploy (Vercel)
+## Deploy (Netlify)
 
-1. Import the repo in Vercel, set **Root Directory** to `web`.
-2. Environment variables: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` (values in `web/.env.example`), and `SUPABASE_SERVICE_ROLE_KEY` (Supabase → Project Settings → API keys → secret key; server only).
-3. Optional: `NEXT_PUBLIC_COMPANY_NAME`, `NEXT_PUBLIC_COMPANY_GSTIN`, `NEXT_PUBLIC_COMPANY_ADDRESS` for the supplier block on the PO PDF.
-4. In Supabase → Authentication → URL configuration, add the Vercel URL as Site URL.
+`netlify.toml` sets the base directory to `web` and the public Supabase settings, so a connected repo builds as-is.
+
+1. Netlify → Site configuration → Environment variables: add `SUPABASE_SERVICE_ROLE_KEY` (Supabase → Project Settings → API keys → secret key; server only) so admins can create logins from the Users page.
+2. Optional: `NEXT_PUBLIC_COMPANY_NAME`, `NEXT_PUBLIC_COMPANY_GSTIN`, `NEXT_PUBLIC_COMPANY_ADDRESS` for the supplier block on the PO PDF (redeploy after setting).
+3. Supabase → Authentication → URL Configuration: set Site URL to `https://wms-sis.netlify.app` so confirmation emails link back to the app.
 
 ## Schema changes
 

@@ -1,0 +1,12 @@
+# The Next.js app lives in web/. Netlify's Next.js runtime is picked up automatically.
+[build]
+  base = "web"
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "22"
+  NEXT_TELEMETRY_DISABLED = "1"
+  # Public values (they ship to every browser). Set SUPABASE_SERVICE_ROLE_KEY in the Netlify UI, never here.
+  NEXT_PUBLIC_SUPABASE_URL = "https://qlksootwhmpaqznebnlz.supabase.co"
+  NEXT_PUBLIC_SUPABASE_ANON_KEY = "sb_publishable_PWruDy8Hu7gMqebSKZTwig_naCio3CM"
