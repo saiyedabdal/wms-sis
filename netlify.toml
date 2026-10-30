@@ -13,6 +13,9 @@
   # These two are meant to be in the browser bundle; don't let secrets scanning fail the deploy on them.
   SECRETS_SCAN_OMIT_KEYS = "NEXT_PUBLIC_SUPABASE_URL,NEXT_PUBLIC_SUPABASE_ANON_KEY"
   SECRETS_SCAN_SMART_DETECTION_OMIT_VALUES = "sb_publishable_PWruDy8Hu7gMqebSKZTwig_naCio3CM"
+  # Smart detection flags random bytes in Next.js' bundled amphtml validator (AKIA… look-alikes) inside the
+  # server function. Values of env vars marked secret in the Netlify UI are still scanned.
+  SECRETS_SCAN_SMART_DETECTION_ENABLED = "false"
 
 # Next.js runtime: server rendering, middleware (login redirect) and server actions
 [[plugins]]
