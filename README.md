@@ -38,13 +38,13 @@ Every movement is a row in `stock_ledger` (receipt, sale, count adjustment, buck
 - **Ops** – all facilities: requests, dispatch, facilities, item master
 - **Facility staff** – their own facility only: receive, sell, count, issue, return, reports
 
-The **first account to sign up becomes admin**. Anyone who signs up later stays inactive until an admin activates them on the Users page. Admins can also create logins directly from the Users page once `SUPABASE_SERVICE_ROLE_KEY` is set on the server.
+The **first account to sign up becomes admin**. Anyone who signs up later stays inactive until an admin activates them on the Users page. Admins can also create logins directly from the Users page.
 
 ## Run locally
 
 ```bash
 cd web
-cp .env.example .env.local   # fill SUPABASE_SERVICE_ROLE_KEY if you want to create users from the app
+cp .env.example .env.local
 npm install
 npm run dev
 ```
@@ -53,11 +53,11 @@ Open http://localhost:3000, create your account (becomes admin), then: Facilitie
 
 ## Deploy (Netlify)
 
-`netlify.toml` sets the base directory to `web` and the public Supabase settings, so a connected repo builds as-is.
+The portal is a **static export** (`web/out`): every page reads and writes Supabase from the browser, so Netlify only serves files. `netlify.toml` builds `web/` and carries the public Supabase settings, so a connected repo deploys as-is. Record pages use `?id=` (e.g. `/requests/view/?id=12`).
 
-1. Netlify → Site configuration → Environment variables: add `SUPABASE_SERVICE_ROLE_KEY` (Supabase → Project Settings → API keys → secret key; server only) so admins can create logins from the Users page.
-2. Optional: `NEXT_PUBLIC_COMPANY_NAME`, `NEXT_PUBLIC_COMPANY_GSTIN`, `NEXT_PUBLIC_COMPANY_ADDRESS` for the supplier block on the PO PDF (redeploy after setting).
-3. Supabase → Authentication → URL Configuration: set Site URL to `https://wms-sis.netlify.app` so confirmation emails link back to the app.
+- Admin "Create login" runs in the Supabase Edge Function `supabase/functions/admin-create-user`, which checks the caller is an admin and uses the service-role key Supabase injects. Netlify needs no secrets.
+- Supabase → Authentication → URL Configuration: Site URL `https://wms-sis.netlify.app`.
+- Optional: `NEXT_PUBLIC_COMPANY_NAME`, `NEXT_PUBLIC_COMPANY_GSTIN`, `NEXT_PUBLIC_COMPANY_ADDRESS` (Netlify env vars) for the supplier block on the PO PDF; redeploy after setting.
 
 ## Schema changes
 

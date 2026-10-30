@@ -6,7 +6,6 @@ import { Alert, Badge, Button, Card, Field, Input, PageHeader, Select, Table, Td
 import { supabaseBrowser } from "@/lib/supabase/client";
 import type { Profile, Role } from "@/lib/types";
 import { errMsg } from "@/lib/format";
-import { createUser } from "./actions";
 
 const ROLES: { value: Role; label: string }[] = [
   { value: "facility_staff", label: "Facility staff" },
@@ -41,9 +40,13 @@ export default function UsersPage() {
     e.preventDefault();
     setBusy(true);
     setMsg(null);
-    const res = await createUser({ ...form, facility_id: form.role === "facility_staff" ? Number(form.facility_id) || null : null });
+    const { data, error } = await supabaseBrowser().functions.invoke("admin-create-user", {
+      body: { ...form, facility_id: form.role === "facility_staff" ? Number(form.facility_id) || null : null },
+    });
     setBusy(false);
-    if ("error" in res && res.error) return setMsg({ tone: "red", text: res.error });
+    // non-2xx responses carry the reason in the JSON body
+    const reason = error ? ((await (error as { context?: Response }).context?.json?.().catch(() => null))?.error ?? errMsg(error)) : data?.error;
+    if (reason) return setMsg({ tone: "red", text: reason });
     setMsg({ tone: "green", text: `Login created for ${form.email}. Share the password with them.` });
     setForm({ ...form, full_name: "", email: "", password: "" });
     load();

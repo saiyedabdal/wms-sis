@@ -1,22 +1,20 @@
-# The Next.js app lives in web/. Netlify's Next.js runtime is picked up automatically.
+# The portal is a static export of the Next.js app in web/ (no server functions needed:
+# every page talks to Supabase from the browser).
 [build]
   base = "web"
   command = "npm run build"
-  publish = ".next"
+  publish = "out"
 
 [build.environment]
   NODE_VERSION = "22"
   NEXT_TELEMETRY_DISABLED = "1"
-  # Public values (they ship to every browser). Set SUPABASE_SERVICE_ROLE_KEY in the Netlify UI, never here.
+  # Public values (they ship to every browser by design).
   NEXT_PUBLIC_SUPABASE_URL = "https://qlksootwhmpaqznebnlz.supabase.co"
   NEXT_PUBLIC_SUPABASE_ANON_KEY = "sb_publishable_PWruDy8Hu7gMqebSKZTwig_naCio3CM"
-  # These two are meant to be in the browser bundle; don't let secrets scanning fail the deploy on them.
   SECRETS_SCAN_OMIT_KEYS = "NEXT_PUBLIC_SUPABASE_URL,NEXT_PUBLIC_SUPABASE_ANON_KEY"
-  SECRETS_SCAN_SMART_DETECTION_OMIT_VALUES = "sb_publishable_PWruDy8Hu7gMqebSKZTwig_naCio3CM"
-  # Smart detection flags random bytes in Next.js' bundled amphtml validator (AKIA… look-alikes) inside the
-  # server function. Values of env vars marked secret in the Netlify UI are still scanned.
-  SECRETS_SCAN_SMART_DETECTION_ENABLED = "false"
 
-# Next.js runtime: server rendering, middleware (login redirect) and server actions
-[[plugins]]
-  package = "@netlify/plugin-nextjs"
+# Unknown paths go to the 404 page rather than Netlify's default
+[[redirects]]
+  from = "/*"
+  to = "/404.html"
+  status = 404

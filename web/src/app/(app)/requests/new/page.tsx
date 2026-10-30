@@ -1,5 +1,6 @@
 "use client";
 
+import { paths } from "@/lib/paths";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { RiDeleteBinLine, RiMagicLine } from "@remixicon/react";
@@ -105,7 +106,7 @@ export default function NewRequestPage() {
     });
     setBusy(false);
     if (error) return setErr(errMsg(error));
-    router.push(`/requests/${data}`);
+    router.push(paths.request(data));
   };
 
   const restricted = facility?.restrict_to_assortment;

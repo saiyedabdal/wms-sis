@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Alert, Button, Field, Input } from "@/components/ui";
 import { supabaseBrowser } from "@/lib/supabase/client";
 
@@ -14,6 +14,13 @@ export default function LoginPage() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ tone: "red" | "green"; text: string } | null>(null);
 
+  // already signed in (the static site has no middleware to do this)
+  useEffect(() => {
+    supabaseBrowser()
+      .auth.getSession()
+      .then(({ data }) => data.session && router.replace("/"));
+  }, [router]);
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
@@ -24,14 +31,12 @@ export default function LoginPage() {
       if (error) setMsg({ tone: "red", text: error.message });
       else {
         router.replace("/");
-        router.refresh();
       }
     } else {
       const { data, error } = await sb.auth.signUp({ email, password, options: { data: { full_name: name } } });
       if (error) setMsg({ tone: "red", text: error.message });
       else if (data.session) {
         router.replace("/");
-        router.refresh();
       } else setMsg({ tone: "green", text: "Check your inbox to confirm your email, then sign in." });
     }
     setBusy(false);

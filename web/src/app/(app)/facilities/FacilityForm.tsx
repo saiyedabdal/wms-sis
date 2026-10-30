@@ -1,5 +1,6 @@
 "use client";
 
+import { paths } from "@/lib/paths";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Alert, Button, Card, Field, Input, Select, Textarea } from "@/components/ui";
@@ -49,7 +50,7 @@ export function FacilityForm({ initial }: { initial?: Facility }) {
     if (res.error) return setMsg({ tone: "red", text: errMsg(res.error) });
     setMsg({ tone: "green", text: "Saved" });
     router.refresh();
-    if (!initial) router.push(`/facilities/${res.data.id}`);
+    if (!initial) router.push(paths.facility(res.data.id));
   };
 
   return (

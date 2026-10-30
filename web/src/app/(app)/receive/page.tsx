@@ -1,5 +1,6 @@
 "use client";
 
+import { paths } from "@/lib/paths";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useApp } from "@/components/AppShell";
@@ -78,7 +79,7 @@ export default function ReceivePage() {
                     <Td right>{s.shipment_lines.reduce((a, l) => a + l.qty, 0)}</Td>
                     <Td right>{s.carton_count ?? "—"}</Td>
                     <Td right>
-                      <LinkButton href={`/receive/${s.id}`} size="sm">
+                      <LinkButton href={paths.receiveShipment(s.id)} size="sm">
                         Receive
                       </LinkButton>
                     </Td>
@@ -97,7 +98,7 @@ export default function ReceivePage() {
                 {grns.map((g) => (
                   <tr key={g.id}>
                     <Td>
-                      <Link href={`/receive/grn/${g.id}`} className="font-semibold hover:underline">
+                      <Link href={paths.grn(g.id)} className="font-semibold hover:underline">
                         {g.grn_no}
                       </Link>
                     </Td>

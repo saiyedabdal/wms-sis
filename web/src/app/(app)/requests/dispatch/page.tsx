@@ -1,6 +1,7 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
+import { paths, useIdParam } from "@/lib/paths";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { RiArrowLeftRightLine, RiDeleteBinLine } from "@remixicon/react";
 import { SkuPicker } from "@/components/SkuPicker";
@@ -19,7 +20,7 @@ interface DLine {
 }
 
 export default function DispatchPage() {
-  const { id } = useParams<{ id: string }>();
+  const id = useIdParam();
   const router = useRouter();
   const [reqNo, setReqNo] = useState("");
   const [reqLines, setReqLines] = useState<RequestLineView[]>([]);
@@ -60,14 +61,14 @@ export default function DispatchPage() {
     });
     setBusy(false);
     if (error) return setErr(errMsg(error));
-    router.push(`/requests/${id}`);
+    router.push(paths.request(id));
   };
 
   const total = lines.reduce((s, l) => s + (l.qty || 0), 0);
 
   return (
     <>
-      <PageHeader title="Record dispatch" subtitle={`Against ${reqNo}. Copy the numbers from the Uniware gate pass / invoice.`} back={{ href: `/requests/${id}`, label: reqNo || "Request" }} />
+      <PageHeader title="Record dispatch" subtitle={`Against ${reqNo}. Copy the numbers from the Uniware gate pass / invoice.`} back={{ href: paths.request(id), label: reqNo || "Request" }} />
       <div className="grid gap-6 lg:grid-cols-3">
         <Card title="Shipment details" className="lg:col-span-1">
           <div className="grid gap-4">

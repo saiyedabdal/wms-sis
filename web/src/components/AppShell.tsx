@@ -88,8 +88,7 @@ export function AppShell({ profile, facilities, children }: { profile: Profile; 
   const facility = facilities.find((f) => f.id === facilityId) ?? null;
   const signOut = async () => {
     await supabaseBrowser().auth.signOut();
-    router.replace("/login");
-    router.refresh();
+    router.replace("/login/");
   };
 
   const isActive = (href: string) =>

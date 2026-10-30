@@ -1,5 +1,6 @@
 "use client";
 
+import { paths } from "@/lib/paths";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useApp } from "@/components/AppShell";
@@ -86,7 +87,7 @@ export default function RequestsPage() {
               {rows.map((r) => (
                 <tr key={r.id} className="hover:bg-n50">
                   <Td>
-                    <Link href={`/requests/${r.id}`} className="font-semibold hover:underline">
+                    <Link href={paths.request(r.id)} className="font-semibold hover:underline">
                       {r.request_no}
                     </Link>
                     <div className="text-xs text-n800">{r.po_no}</div>

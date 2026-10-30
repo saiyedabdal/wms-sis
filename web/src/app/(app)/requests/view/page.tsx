@@ -1,7 +1,7 @@
 "use client";
 
+import { paths, useIdParam } from "@/lib/paths";
 import Link from "next/link";
-import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { RiDownload2Line, RiFilePdf2Line, RiTruckLine } from "@remixicon/react";
 import { useApp } from "@/components/AppShell";
@@ -36,7 +36,7 @@ interface Shipment {
 }
 
 export default function RequestDetail() {
-  const { id } = useParams<{ id: string }>();
+  const id = useIdParam();
   const { facilities } = useApp();
   const [req, setReq] = useState<Req | null>(null);
   const [lines, setLines] = useState<RequestLineView[]>([]);
@@ -124,7 +124,7 @@ export default function RequestDetail() {
               <RiDownload2Line size={16} /> Excel
             </Button>
             {canDispatch && (
-              <LinkButton href={`/requests/${req.id}/dispatch`}>
+              <LinkButton href={paths.dispatch(req.id)}>
                 <RiTruckLine size={16} /> Record dispatch
               </LinkButton>
             )}
@@ -266,7 +266,7 @@ export default function RequestDetail() {
                       <Td right>{s.carton_count ?? "—"}</Td>
                       <Td>
                         {g ? (
-                          <Link href={`/receive/grn/${g.id}`} className="hover:underline">
+                          <Link href={paths.grn(g.id)} className="hover:underline">
                             {g.grn_no} {g.has_discrepancy ? <Badge tone="red">discrepancy</Badge> : <Badge tone="green">ok</Badge>}
                           </Link>
                         ) : (

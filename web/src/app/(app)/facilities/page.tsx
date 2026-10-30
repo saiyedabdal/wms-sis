@@ -1,5 +1,6 @@
 "use client";
 
+import { paths } from "@/lib/paths";
 import Link from "next/link";
 import { useApp } from "@/components/AppShell";
 import { Badge, Card, LinkButton, PageHeader, Table, Td, Th } from "@/components/ui";
@@ -25,7 +26,7 @@ export default function FacilitiesPage() {
             {facilities.map((f) => (
               <tr key={f.id} className="hover:bg-n50">
                 <Td>
-                  <Link href={`/facilities/${f.id}`} className="font-semibold hover:underline">
+                  <Link href={paths.facility(f.id)} className="font-semibold hover:underline">
                     {f.name}
                   </Link>
                   <div className="text-xs text-n800">{f.code}</div>

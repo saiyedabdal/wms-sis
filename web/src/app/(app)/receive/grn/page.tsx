@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { useIdParam } from "@/lib/paths";
 import { useEffect, useState } from "react";
 import { useApp } from "@/components/AppShell";
 import { Badge, Card, CopyBlock, Empty, PageHeader, StatusBadge, Table, Td, Th } from "@/components/ui";
@@ -27,7 +27,7 @@ interface Grn {
 type Line = GrnLineDoc & { id: number; bucket: Bucket };
 
 export default function GrnDetail() {
-  const { id } = useParams<{ id: string }>();
+  const id = useIdParam();
   const { facilities } = useApp();
   const [g, setG] = useState<Grn | null>(null);
   const [lines, setLines] = useState<Line[]>([]);

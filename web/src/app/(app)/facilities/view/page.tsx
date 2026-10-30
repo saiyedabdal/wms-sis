@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { useIdParam } from "@/lib/paths";
 import { useEffect, useMemo, useState } from "react";
 import { RiDeleteBinLine } from "@remixicon/react";
 import { useApp } from "@/components/AppShell";
@@ -26,7 +26,7 @@ interface Row {
 }
 
 export default function FacilityDetail() {
-  const { id } = useParams<{ id: string }>();
+  const id = useIdParam();
   const facilityId = Number(id);
   const { facilities } = useApp();
   const facility = facilities.find((f) => f.id === facilityId);

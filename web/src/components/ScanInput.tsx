@@ -8,7 +8,15 @@ import { Button, Input } from "./ui";
  * Barcode entry. USB/Bluetooth scanners type the code + Enter into the box;
  * on phones the camera button decodes barcodes with ZXing.
  */
-export function ScanInput({ onScan, placeholder = "Scan or type SKU barcode, then Enter" }: { onScan: (code: string) => void; placeholder?: string }) {
+export function ScanInput({
+  onScan,
+  placeholder = "Scan or type SKU barcode, then Enter",
+  disabled,
+}: {
+  onScan: (code: string) => void;
+  placeholder?: string;
+  disabled?: boolean;
+}) {
   const [code, setCode] = useState("");
   const [camera, setCamera] = useState(false);
   const [camErr, setCamErr] = useState<string | null>(null);
@@ -16,8 +24,13 @@ export function ScanInput({ onScan, placeholder = "Scan or type SKU barcode, the
   const lastRef = useRef<{ code: string; at: number }>({ code: "", at: 0 });
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // a scanner types into whatever has focus; refocus once the box becomes usable
   useEffect(() => {
-    if (!camera) return;
+    if (!disabled) inputRef.current?.focus();
+  }, [disabled]);
+
+  useEffect(() => {
+    if (!camera || disabled) return;
     let controls: { stop: () => void } | undefined;
     let cancelled = false;
     (async () => {
@@ -43,7 +56,7 @@ export function ScanInput({ onScan, placeholder = "Scan or type SKU barcode, the
       cancelled = true;
       controls?.stop();
     };
-  }, [camera, onScan]);
+  }, [camera, disabled, onScan]);
 
   return (
     <div className="flex flex-col gap-3">
@@ -54,6 +67,7 @@ export function ScanInput({ onScan, placeholder = "Scan or type SKU barcode, the
             ref={inputRef}
             value={code}
             autoFocus
+            disabled={disabled}
             onChange={(e) => setCode(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter") {

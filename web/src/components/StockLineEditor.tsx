@@ -28,15 +28,17 @@ export interface OutLine {
 
 export function useStock(facilityId: number | null | undefined) {
   const [rows, setRows] = useState<StockRow[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const reload = useCallback(async () => {
     if (!facilityId) return setRows([]);
     const { data } = await supabaseBrowser().from("v_stock").select("sku,item_name,bucket,qty,msp").eq("facility_id", facilityId).gt("qty", 0).order("item_name");
     setRows((data ?? []) as StockRow[]);
+    setLoaded(true);
   }, [facilityId]);
   useEffect(() => {
     reload();
   }, [reload]);
-  return { rows, reload };
+  return { rows, loaded, reload };
 }
 
 /**
@@ -60,7 +62,7 @@ export function StockLineEditor({
   withReason?: boolean;
   showPrice?: boolean;
 }) {
-  const { rows } = useStock(facilityId);
+  const { rows, loaded } = useStock(facilityId);
   const [flash, setFlash] = useState<{ tone: "green" | "red"; text: string } | null>(null);
   const onHand = useCallback((sku: string, b: Bucket) => rows.find((r) => r.sku === sku && r.bucket === b)?.qty ?? 0, [rows]);
 
@@ -108,7 +110,7 @@ export function StockLineEditor({
   return (
     <div className="flex flex-col gap-4">
       <div className="grid gap-3 md:grid-cols-2">
-        <ScanInput onScan={onScan} />
+        <ScanInput onScan={onScan} disabled={!loaded} placeholder={loaded ? undefined : "Loading stock…"} />
         <SkuPicker options={options} onPick={(it) => add(it.sku, it.name)} placeholder={`Search ${options.length} SKUs in stock`} />
       </div>
       {flash && <Alert tone={flash.tone}>{flash.text}</Alert>}

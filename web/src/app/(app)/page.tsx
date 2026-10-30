@@ -1,5 +1,6 @@
 "use client";
 
+import { paths } from "@/lib/paths";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useApp } from "@/components/AppShell";
@@ -83,7 +84,7 @@ export default function Dashboard() {
                 {d.inTransit.map((s) => (
                   <tr key={s.id}>
                     <Td>
-                      <Link className="font-medium hover:underline" href={`/receive/${s.id}`}>
+                      <Link className="font-medium hover:underline" href={paths.receiveShipment(s.id)}>
                         {s.shipment_no}
                       </Link>
                       <div className="text-xs text-n800">{s.order_requests?.request_no}</div>
@@ -106,7 +107,7 @@ export default function Dashboard() {
                   <tr key={r.id}>
                     <Td>
                       {isOps ? (
-                        <Link className="font-medium hover:underline" href={`/requests/${r.id}`}>
+                        <Link className="font-medium hover:underline" href={paths.request(r.id)}>
                           {r.request_no}
                         </Link>
                       ) : (

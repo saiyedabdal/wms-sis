@@ -1,6 +1,7 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
+import { paths, useIdParam } from "@/lib/paths";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { RiCameraLine } from "@remixicon/react";
 import { ScanInput } from "@/components/ScanInput";
@@ -48,7 +49,7 @@ const autoReason = (l: GLine): Reason => {
 };
 
 export default function ReceiveShipment() {
-  const { shipmentId } = useParams<{ shipmentId: string }>();
+  const shipmentId = useIdParam();
   const router = useRouter();
   const [ship, setShip] = useState<Ship | null>(null);
   const [lines, setLines] = useState<GLine[]>([]);
@@ -149,7 +150,7 @@ export default function ReceiveShipment() {
         }
       }
     }
-    router.push(`/receive/grn/${grnId}`);
+    router.push(paths.grn(grnId));
   };
 
   if (!ship) return <Empty title="Loading…" />;
