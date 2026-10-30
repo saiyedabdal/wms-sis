@@ -1,0 +1,104 @@
+@import "tailwindcss";
+
+/* Frido Design System v2 tokens (same as the Partner Hub) */
+@theme {
+  --font-sans: "Outfit", ui-sans-serif, system-ui, sans-serif;
+
+  --color-yellow: #ffd100;
+  --color-y50: #fffae6;
+  --color-y75: #ffec96;
+  --color-y100: #ffe46b;
+  --color-y200: #ffd92b;
+  --color-y400: #b39200;
+  --color-y500: #9c7f00;
+
+  --color-ink: #131313;
+  --color-ink-2: #101820;
+
+  --color-blue: #307fe2;
+  --color-b50: #eaf2fc;
+  --color-b100: #87b5ee;
+  --color-b400: #22599e;
+  --color-b500: #1d4d8a;
+
+  --color-n50: #fcfcfc;
+  --color-n100: #f7f7f7;
+  --color-n200: #f0f0f0;
+  --color-n300: #eaeaea;
+  --color-n400: #e3e3e3;
+  --color-n500: #dddddd;
+  --color-n600: #bcbcbc;
+  --color-n700: #9d9d9d;
+  --color-n800: #7e7e7e;
+  --color-n900: #636363;
+
+  --color-red-a: #9f130b;
+  --color-red-b: #f22b20;
+  --color-red-c: #ffe9e8;
+  --color-green-a: #075b08;
+  --color-green-b: #159616;
+  --color-green-c: #d8ffd9;
+
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+
+  --shadow-card: 0 1px 2px rgb(19 19 19 / 0.04), 0 4px 16px rgb(19 19 19 / 0.04);
+  --shadow-cta: 0 4px 12px rgb(255 209 0 / 0.35);
+  --shadow-sheet: 0 -8px 32px rgb(19 19 19 / 0.12);
+}
+
+html,
+body {
+  background: var(--color-n100);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* touch: no double-tap zoom delay on till controls */
+button,
+a,
+input,
+select {
+  touch-action: manipulation;
+}
+
+input[type="number"]::-webkit-inner-spin-button {
+  opacity: 0.4;
+}
+
+/* ---------------------------------------------------------------- print: 80 mm thermal and A4 */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  html,
+  body {
+    background: white !important;
+  }
+}
+.doc-80 {
+  width: 72mm;
+  font-size: 11px;
+  line-height: 1.35;
+}
+.doc-a4 {
+  width: 186mm;
+  font-size: 11.5px;
+  line-height: 1.4;
+}
