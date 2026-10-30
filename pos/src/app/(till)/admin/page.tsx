@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { RiAddLine, RiAlarmWarningLine, RiCheckLine, RiErrorWarningLine } from "@remixicon/react";
 import { usePos } from "@/lib/pos";
 import { sb } from "@/lib/supabase";
-import { dateTime, inr, modeLabel } from "@/lib/format";
+import { dateTime, inr, modeLabel, STATE_NAMES } from "@/lib/format";
 import type { CatalogItem, PayMode, StaffRef } from "@/lib/types";
 import { Alert, Badge, Button, Card, Chip, Empty, Field, Input, Modal, Select, StatusBadge, cx, useToast } from "@/components/ui";
 
@@ -153,7 +153,62 @@ function Staff() {
         <Field label="New PIN (4–6 digits)" hint="Tell them in person. They can change it under Admin → Staff."><Input autoFocus type="password" inputMode="numeric" maxLength={6} value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))} /></Field>
         {err && <Alert className="mt-3">{err}</Alert>}
       </Modal>
+      {ctx?.user.is_ops && <AddStaff />}
     </>
+  );
+}
+
+const FRIDO_ROLES = ["super_admin", "admin", "ops", "manager"];
+
+/** Frido ops add a Partner Hub login to this clinic's POS staff (or as a Frido approver) with a role and PIN. */
+function AddStaff() {
+  const { ctx, facilityId, call, refresh } = usePos();
+  const toast = useToast();
+  const [people, setPeople] = useState<{ id: string; email: string; full_name: string | null; role: string; facility_id: number | null }[]>([]);
+  const [who, setWho] = useState("");
+  const [role, setRole] = useState("cashier");
+  const [name, setName] = useState("");
+  const [pin, setPin] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => {
+    sb().from("profiles").select("id,email,full_name,role,facility_id").eq("is_active", true).order("full_name")
+      .then(({ data }) => setPeople((data as typeof people) ?? []));
+  }, []);
+  const onPos = new Set(ctx?.staff.map((s) => s.user_id));
+  const eligible = people.filter((p) => !onPos.has(p.id) && ((p.role === "facility_staff" && p.facility_id === facilityId) || FRIDO_ROLES.includes(p.role)));
+  const person = eligible.find((p) => p.id === who);
+  const frido = person ? FRIDO_ROLES.includes(person.role) : false;
+  const add = async () => {
+    setErr(null);
+    try {
+      await call("pos_admin_set_staff", { p_user_id: who, p_facility_id: frido ? null : facilityId, p_pos_role: frido ? "admin" : role,
+        p_display_name: name || person?.full_name || person?.email, p_pin: pin, p_is_active: true });
+      toast("Added to the POS"); setWho(""); setName(""); setPin(""); refresh();
+    } catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
+  };
+  return (
+    <div className="mt-6 border-t border-n300 pt-4">
+      <h3 className="mb-1 font-semibold">Add a person</h3>
+      <p className="mb-3 text-xs text-n800">Clinic staff need a Partner Hub login assigned to {ctx?.facility?.name ?? "this clinic"} first (Hub → Users). Frido super admins, admins and managers join as POS admins who can approve above the manager limit and late returns.</p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="Partner Hub user">
+          <Select value={who} onChange={(e) => { setWho(e.target.value); setName(""); }}>
+            <option value="">Choose…</option>
+            {eligible.map((p) => <option key={p.id} value={p.id}>{p.full_name ?? p.email} · {p.role.replace("_", " ")}</option>)}
+          </Select>
+        </Field>
+        <Field label="POS role">
+          {frido ? <Input disabled value="Frido admin (approver)" /> : (
+            <Select value={role} onChange={(e) => setRole(e.target.value)}><option value="cashier">Cashier</option><option value="manager">Clinic manager</option></Select>
+          )}
+        </Field>
+        <Field label="Name on invoices"><Input value={name} placeholder={person?.full_name ?? ""} onChange={(e) => setName(e.target.value)} /></Field>
+        <Field label="PIN (4–6 digits)"><Input type="password" inputMode="numeric" maxLength={6} value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))} /></Field>
+      </div>
+      {eligible.length === 0 && <p className="mt-2 text-xs text-n800">Everyone eligible is already on the POS.</p>}
+      {err && <Alert className="mt-3">{err}</Alert>}
+      <Button className="mt-3" disabled={!who || !/^\d{4,6}$/.test(pin)} onClick={add}><RiAddLine /> Add to POS</Button>
+    </div>
   );
 }
 
@@ -194,7 +249,7 @@ function Setup() {
   const [till, setTill] = useState("");
   const [err, setErr] = useState<string | null>(null);
   if (!ctx?.user.is_ops) return <Alert tone="yellow">Only Frido ops change the invoicing entity, series, payment modes and limits.</Alert>;
-  if (!ctx.facility) return <Alert tone="yellow">Pick a clinic first.</Alert>;
+  if (!ctx.facility || !s) return <Onboard />;
   const save = async () => {
     setErr(null);
     try {
@@ -231,26 +286,161 @@ function Setup() {
           if (error) setErr(error.message); else { setTill(""); toast("Till added"); refresh(); }
         }}><RiAddLine /> Add till</Button>
       </div>
+      <details className="border-t border-n300 pt-4">
+        <summary className="cursor-pointer text-sm font-semibold">Put another clinic on the POS</summary>
+        <div className="mt-4"><Onboard /></div>
+      </details>
+    </div>
+  );
+}
+
+const ALL_MODES: PayMode[] = ["cash", "upi_static", "upi_razorpay", "card_edc", "bank_transfer"];
+const seriesFrom = (code: string, suffix: string) => (code.replace(/[^A-Z0-9]/g, "").slice(0, 3) + suffix).padEnd(4, "X");
+
+/** First-time setup for a Partner Hub facility: invoicing entity (Decision 1), series codes, payment modes, first till. */
+function Onboard() {
+  const { ctx, call, setFacility } = usePos();
+  const toast = useToast();
+  const [facs, setFacs] = useState<{ id: number; code: string; name: string; type: string; state: string | null }[]>([]);
+  const [ents, setEnts] = useState<{ id: number; code: string; legal_name: string; gstin: string | null; kind: string }[]>([]);
+  const [fac, setFac] = useState<number | "">("");
+  const [entityId, setEntityId] = useState<number | "new">("new");
+  const [e, setE] = useState({ code: "", kind: "frido", legal_name: "", trade_name: "", gstin: "", state_code: "27", address: "", pan: "", cin: "", upi_vpa: "", upi_payee_name: "" });
+  const [inv, setInv] = useState("");
+  const [cn, setCn] = useState("");
+  const [modes, setModes] = useState<PayMode[]>(["cash", "upi_static", "card_edc"]);
+  const [till, setTill] = useState("Front desk");
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    sb().from("facilities").select("id,code,name,type,state").eq("is_active", true).order("name")
+      .then(({ data }) => setFacs(((data as typeof facs) ?? []).filter((f) => f.type !== "warehouse")));
+    sb().from("pos_entities").select("id,code,legal_name,gstin,kind").eq("is_active", true).order("legal_name").then(({ data }) => {
+      const list = (data as typeof ents) ?? [];
+      setEnts(list);
+      if (list.length) setEntityId(list[0].id);
+    });
+  }, []);
+  const onPos = new Set(ctx?.facilities.map((f) => f.id));
+  const chosen = facs.find((f) => f.id === fac);
+  const pick = (id: number) => {
+    const f = facs.find((x) => x.id === id);
+    setFac(id);
+    if (f) { setInv(seriesFrom(f.code, "1")); setCn(seriesFrom(f.code, "R")); }
+  };
+  const gstinOk = !e.gstin || /^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(e.gstin);
+
+  const submit = async () => {
+    setErr(null);
+    if (!fac) return setErr("Choose the clinic");
+    if (entityId === "new") {
+      if (!e.legal_name.trim() || !e.address.trim()) return setErr("The invoicing entity needs a legal name and address");
+      if (!gstinOk) return setErr("GSTIN must be 15 characters, e.g. 27ABCDE1234F1Z5");
+      if (e.gstin && e.gstin.slice(0, 2) !== e.state_code) return setErr("The GSTIN's first two digits must match the state code");
+    }
+    if (!/^[A-Z0-9]{4}$/.test(inv) || !/^[A-Z0-9]{4}$/.test(cn)) return setErr("Series codes are exactly 4 letters or digits");
+    setBusy(true);
+    try {
+      let eid = entityId;
+      if (eid === "new") {
+        const code = (e.code || (e.kind === "frido" ? `FRIDO-${e.state_code}` : chosen!.code)).toUpperCase();
+        const { data, error } = await sb().from("pos_entities").insert({
+          code, kind: e.kind, legal_name: e.legal_name.trim(), trade_name: e.trade_name || null, gstin: e.gstin || null,
+          state_name: STATE_NAMES[e.state_code] ?? e.state_code, state_code: e.state_code, address: e.address.trim(),
+          pan: e.pan || null, cin: e.cin || null, upi_vpa: e.upi_vpa || null, upi_payee_name: e.upi_payee_name || null,
+        }).select("id").single();
+        if (error) throw error;
+        eid = (data as { id: number }).id;
+      }
+      await call("pos_admin_setup_facility", { p_facility_id: fac, p_entity_id: eid, p_invoice_series: inv, p_credit_series: cn,
+        p_settings: { payment_modes: modes } });
+      if (till.trim()) {
+        const { error } = await sb().from("pos_registers").insert({ facility_id: fac, name: till.trim(), printer: "thermal_80" });
+        if (error && !/duplicate/i.test(error.message)) throw error;
+      }
+      toast(`${chosen?.name} is on the POS`);
+      setFacility(Number(fac));
+    } catch (x) { setErr(x instanceof Error ? x.message : String((x as { message?: string })?.message ?? x)); }
+    setBusy(false);
+  };
+
+  const ent = (k: keyof typeof e) => (ev: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setE({ ...e, [k]: k === "gstin" || k === "code" ? ev.target.value.toUpperCase() : ev.target.value });
+  return (
+    <div className="flex flex-col gap-5">
+      <div>
+        <h3 className="font-semibold">Put a clinic on the POS</h3>
+        <p className="text-sm text-n800">Pick a Partner Hub facility, who invoices for it (Decision 1), its invoice series and how it takes payment. Staff and PINs come next, under Staff &amp; PINs.</p>
+      </div>
+      <Field label="Clinic / retailer">
+        <Select value={fac} onChange={(ev) => pick(Number(ev.target.value))}>
+          <option value="">Choose…</option>
+          {facs.map((f) => <option key={f.id} value={f.id} disabled={onPos.has(f.id)}>{f.name} · {f.code}{onPos.has(f.id) ? " (already on the POS)" : ""}</option>)}
+        </Select>
+      </Field>
+      <Field label="Invoices are issued by">
+        <Select value={entityId} onChange={(ev) => setEntityId(ev.target.value === "new" ? "new" : Number(ev.target.value))}>
+          {ents.map((x) => <option key={x.id} value={x.id}>{x.legal_name} · {x.gstin ?? "no GSTIN"} · {x.kind === "frido" ? "Frido" : "clinic"}</option>)}
+          <option value="new">+ New invoicing entity…</option>
+        </Select>
+      </Field>
+      {entityId === "new" && (
+        <div className="grid gap-4 rounded-md border border-n300 p-4 sm:grid-cols-2">
+          <Field label="Type"><Select value={e.kind} onChange={ent("kind")}><option value="frido">Frido invoices (clinic is agent)</option><option value="partner">Clinic invoices with its own GSTIN</option></Select></Field>
+          <Field label="Legal name"><Input value={e.legal_name} onChange={ent("legal_name")} placeholder="Frido Arcatron Mobility Pvt Ltd" /></Field>
+          <Field label="GSTIN" error={gstinOk ? null : "15 characters, e.g. 27ABCDE1234F1Z5"}><Input maxLength={15} value={e.gstin} onChange={ent("gstin")} /></Field>
+          <Field label="State (registration)">
+            <Select value={e.state_code} onChange={ent("state_code")}>{Object.entries(STATE_NAMES).map(([c, n]) => <option key={c} value={c}>{n} ({c})</option>)}</Select>
+          </Field>
+          <Field label="Registered address" className="sm:col-span-2"><Input value={e.address} onChange={ent("address")} /></Field>
+          <Field label="PAN (optional)"><Input value={e.pan} onChange={ent("pan")} /></Field>
+          <Field label="CIN (optional)"><Input value={e.cin} onChange={ent("cin")} /></Field>
+          <Field label="UPI ID for the static QR" hint="An address, not a secret, e.g. frido@icici"><Input value={e.upi_vpa} onChange={ent("upi_vpa")} /></Field>
+          <Field label="UPI payee name"><Input value={e.upi_payee_name} onChange={ent("upi_payee_name")} /></Field>
+        </div>
+      )}
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Field label="Invoice series" hint={`${inv || "XXX1"}/2627/000001`}><Input maxLength={4} value={inv} onChange={(ev) => setInv(ev.target.value.toUpperCase())} /></Field>
+        <Field label="Credit note series"><Input maxLength={4} value={cn} onChange={(ev) => setCn(ev.target.value.toUpperCase())} /></Field>
+        <Field label="First till"><Input value={till} onChange={(ev) => setTill(ev.target.value)} /></Field>
+      </div>
+      <div>
+        <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-n800">Payment modes</div>
+        <div className="flex flex-wrap gap-2">{ALL_MODES.map((m) => (
+          <Chip key={m} active={modes.includes(m)} onClick={() => setModes(modes.includes(m) ? modes.filter((x) => x !== m) : [...modes, m])}>{modeLabel[m]}</Chip>
+        ))}</div>
+        <p className="mt-2 text-xs text-n800">Defaults: cashier 5%, manager 10%, returns 10 days, customer required. Change them after setup.</p>
+      </div>
+      {err && <Alert>{err}</Alert>}
+      <Button className="self-start" disabled={busy || !fac} onClick={submit}>{busy ? "Setting up…" : "Put on the POS"}</Button>
     </div>
   );
 }
 
 export default function AdminPage() {
-  const { ctx } = usePos();
+  const { ctx, setFacility } = usePos();
   const isManager = ctx?.user.is_ops || ctx?.user.pos_role === "manager";
+  const onPos = !!ctx?.facility && !!ctx?.settings;
   const tabs: { id: Tab; label: string; show: boolean }[] = [
-    { id: "attention", label: "Needs attention", show: true },
-    { id: "refunds", label: "Refunds", show: true },
-    { id: "therapists", label: "Therapists & doctors", show: !!isManager },
-    { id: "staff", label: "Staff & PINs", show: true },
-    { id: "health", label: "Data health", show: true },
+    { id: "attention", label: "Needs attention", show: onPos },
+    { id: "refunds", label: "Refunds", show: onPos },
+    { id: "therapists", label: "Therapists & doctors", show: onPos && !!isManager },
+    { id: "staff", label: "Staff & PINs", show: onPos },
+    { id: "health", label: "Data health", show: onPos },
     { id: "setup", label: "Setup", show: !!ctx?.user.is_ops },
   ];
-  const [tab, setTab] = useState<Tab>("attention");
+  const [tab, setTab] = useState<Tab>(onPos ? "attention" : "setup");
   return (
     <div className="mx-auto max-w-5xl p-4 md:p-6">
-      <h1 className="text-[28px] font-semibold tracking-tight">Admin</h1>
-      <p className="mb-5 text-sm text-n800">{ctx?.facility?.name} · signed in as {ctx?.user.full_name} ({ctx?.user.is_ops ? "Frido ops" : ctx?.user.pos_role ?? "staff"})</p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <h1 className="text-[28px] font-semibold tracking-tight">Admin</h1>
+        {ctx?.user.is_ops && (ctx.facilities.length ?? 0) > 1 && (
+          <Select aria-label="Clinic" className="h-10 w-auto" value={ctx.facility?.id ?? ""} onChange={(e) => setFacility(Number(e.target.value))}>
+            {ctx.facilities.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+          </Select>
+        )}
+      </div>
+      <p className="mb-5 text-sm text-n800">{ctx?.facility?.name ?? "No clinic selected"} · signed in as {ctx?.user.full_name} ({ctx?.user.is_ops ? "Frido ops" : ctx?.user.pos_role ?? "staff"})</p>
       <div className="no-scrollbar -mx-1 mb-4 flex gap-2 overflow-x-auto px-1">
         {tabs.filter((t) => t.show).map((t) => <Chip key={t.id} active={tab === t.id} onClick={() => setTab(t.id)}>{t.id === "attention" && <RiAlarmWarningLine className="h-4 w-4" />}{t.label}</Chip>)}
       </div>
