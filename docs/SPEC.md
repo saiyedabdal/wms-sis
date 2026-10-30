@@ -7,7 +7,7 @@ All tracking is at **SKU level** (no batches, no expiry, no bins).
 | Facility | Type | Ownership |
 |---|---|---|
 | Neuromatics, Baner | Partner clinic | Frido-owned stock (consignment) |
-| STF Area, ATP | Frido-owned store | Frido |
+| STF Area, ATP | Frido internal (STF team) | Frido – stock the STF team orders and keeps for trainings, demos and samples |
 | Central warehouse | Warehouse (runs on Uniware) | Frido |
 
 - Facility creation is an admin screen: name, code, type, address, partner margin %, contact emails.
@@ -32,7 +32,8 @@ All tracking is at **SKU level** (no batches, no expiry, no bins).
 4. **Sales** — clinic staff scan/enter each sale in the app (POS-style screen).
 5. **Stock count** — open count (expected qty visible), adjusts stock immediately; logged as adjustment.
 6. **Return to warehouse** — damaged / slow-moving stock with a return note.
-7. **Demo / trial stock** — separate non-sellable bucket per facility (move sellable ↔ demo).
+7. **Buckets** — `Display / Sale` (sellable), `Display only`, `In use` (e.g. wheelchairs used in therapy), `Damaged`; stock can be moved between them.
+8. **Issue (STF)** — stock out for training / demo / sample / internal use, or write-off (lost / scrapped).
 
 Every movement is an append-only stock-ledger entry; stock on hand is derived from the ledger.
 
@@ -45,8 +46,14 @@ Every movement is an append-only stock-ledger entry; stock on hand is derived fr
 - Next.js (App Router) + Supabase (Postgres, Auth, Storage for photos), hosted on Vercel.
 - Auth: email/password. Roles: admin/ops (all facilities), facility staff (own facility only, enforced via RLS).
 
+## Pricing (from Neuromatics-Products_List-FINAL-29THOCT.xlsx)
+- "30 + GST on MSP" for Orthotics, Cushions, Pillows, Socks, Footwear (and insoles); "10% + GST on MSP" for Mobility.
+- Partner price = MSP × (1 − margin), GST inclusive. Margin: SKU override → facility category margin → facility default.
+- Uniware MRP is a ₹50 placeholder for many finished goods, so MSP is set per SKU in the facility assortment.
+- The product sheet lists cushions/pillows at 20% while the margin tab says 30%; the seed uses 30% — override per SKU if 20% is right.
+- The sheet is product-level; stock is per size/colour SKU, so the assortment is built SKU by SKU.
+
 ## Open items
-- Neuromatics tracking sheet (request / received columns) — awaiting access.
-- Does STF ATP (Frido-owned store) get a PO / margin, or 0% and no settlement?
-- Finance & warehouse email recipients.
-- Frido legal entity details (GSTIN, address) for the PO PDF.
+- Finance & warehouse email recipients (set as facility contact emails).
+- Frido legal entity details (name, GSTIN, address) for the PO PDF (`NEXT_PUBLIC_COMPANY_*`).
+- Uniware API credentials for the automatic 6 AM item-master pull (manual CSV upload for now).

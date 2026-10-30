@@ -1,0 +1,20 @@
+# The portal is a static export of the Next.js app in web/ (no server functions needed:
+# every page talks to Supabase from the browser).
+[build]
+  base = "web"
+  command = "npm run build"
+  publish = "out"
+
+[build.environment]
+  NODE_VERSION = "22"
+  NEXT_TELEMETRY_DISABLED = "1"
+  # Public values (they ship to every browser by design).
+  NEXT_PUBLIC_SUPABASE_URL = "https://qlksootwhmpaqznebnlz.supabase.co"
+  NEXT_PUBLIC_SUPABASE_ANON_KEY = "sb_publishable_PWruDy8Hu7gMqebSKZTwig_naCio3CM"
+  SECRETS_SCAN_OMIT_KEYS = "NEXT_PUBLIC_SUPABASE_URL,NEXT_PUBLIC_SUPABASE_ANON_KEY"
+
+# Unknown paths go to the 404 page rather than Netlify's default
+[[redirects]]
+  from = "/*"
+  to = "/404.html"
+  status = 404
