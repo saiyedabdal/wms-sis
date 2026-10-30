@@ -10,6 +10,9 @@
   # Public values (they ship to every browser). Set SUPABASE_SERVICE_ROLE_KEY in the Netlify UI, never here.
   NEXT_PUBLIC_SUPABASE_URL = "https://qlksootwhmpaqznebnlz.supabase.co"
   NEXT_PUBLIC_SUPABASE_ANON_KEY = "sb_publishable_PWruDy8Hu7gMqebSKZTwig_naCio3CM"
+  # These two are meant to be in the browser bundle; don't let secrets scanning fail the deploy on them.
+  SECRETS_SCAN_OMIT_KEYS = "NEXT_PUBLIC_SUPABASE_URL,NEXT_PUBLIC_SUPABASE_ANON_KEY"
+  SECRETS_SCAN_SMART_DETECTION_OMIT_VALUES = "sb_publishable_PWruDy8Hu7gMqebSKZTwig_naCio3CM"
 
 # Next.js runtime: server rendering, middleware (login redirect) and server actions
 [[plugins]]
