@@ -4,34 +4,45 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
+  RiAddBoxLine,
   RiArchiveLine,
   RiArrowGoBackLine,
   RiBarChartBoxLine,
   RiBuilding2Line,
-  RiClipboardLine,
+  RiCheckboxCircleLine,
   RiCloseLine,
   RiDashboardLine,
   RiGiftLine,
   RiInboxArchiveLine,
+  RiLineChartLine,
   RiListCheck3,
   RiLogoutBoxRLine,
   RiMenuLine,
   RiPriceTag3Line,
+  RiRouteLine,
   RiShoppingBag3Line,
   RiTeamLine,
+  RiTruckLine,
 } from "@remixicon/react";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import type { Facility, Profile } from "@/lib/types";
 import { cx } from "./ui";
+
+/** Who is looking: Frido (admin / manager / ops), a retailer's staff, or a super stockist's staff. */
+export type Audience = "frido" | "retailer" | "ss";
 
 interface AppCtx {
   profile: Profile;
   facilities: Facility[];
   isOps: boolean;
   isAdmin: boolean;
-  /** Facility the user is working in (ops can switch; staff are fixed to theirs). */
+  isManager: boolean;
+  audience: Audience;
+  /** Facility the user is working in (Frido can switch; staff are fixed to theirs). */
   facility: Facility | null;
   setFacilityId: (id: number) => void;
+  /** Re-read facilities after one is created or edited. */
+  reloadFacilities: () => Promise<void>;
 }
 
 const Ctx = createContext<AppCtx | null>(null);
@@ -42,26 +53,73 @@ export function useApp() {
   return v;
 }
 
-const NAV: { href: string; label: string; icon: typeof RiDashboardLine; ops?: boolean; admin?: boolean }[] = [
-  { href: "/", label: "Dashboard", icon: RiDashboardLine },
-  { href: "/requests", label: "Order requests", icon: RiClipboardLine, ops: true },
-  { href: "/receive", label: "Receive", icon: RiInboxArchiveLine },
-  { href: "/sales", label: "Sales", icon: RiShoppingBag3Line },
-  { href: "/stock", label: "Stock", icon: RiArchiveLine },
-  { href: "/stock/count", label: "Stock count", icon: RiListCheck3 },
-  { href: "/stock/issue", label: "Issue (training/demo)", icon: RiGiftLine },
-  { href: "/returns", label: "Returns to WH", icon: RiArrowGoBackLine },
-  { href: "/reports", label: "Reports", icon: RiBarChartBoxLine },
-  { href: "/facilities", label: "Facilities", icon: RiBuilding2Line, ops: true },
-  { href: "/items", label: "Item master", icon: RiPriceTag3Line, ops: true },
-  { href: "/users", label: "Users", icon: RiTeamLine, admin: true },
+type Badge = "approvals" | "fulfilment";
+interface NavItem {
+  href: string;
+  label: string;
+  icon: typeof RiDashboardLine;
+  step?: number;
+  who: Audience[];
+  admin?: boolean;
+  badge?: Badge;
+}
+
+const ALL: Audience[] = ["frido", "retailer", "ss"];
+
+// The left nav follows a product's lifecycle (steps 1-8), then supporting modules.
+const NAV: { title?: string; items: NavItem[] }[] = [
+  { items: [{ href: "/", label: "Overview", icon: RiDashboardLine, who: ALL }] },
+  {
+    title: "Product flow",
+    items: [
+      { step: 1, href: "/receive", label: "Inward", icon: RiInboxArchiveLine, who: ALL },
+      { step: 2, href: "/reports", label: "Inward analytics", icon: RiBarChartBoxLine, who: ["frido"] },
+      { step: 3, href: "/sales", label: "Outward", icon: RiShoppingBag3Line, who: ALL },
+      { step: 4, href: "/stock", label: "Stock & reconcile", icon: RiArchiveLine, who: ALL },
+      { step: 5, href: "/demand", label: "Demand planning", icon: RiLineChartLine, who: ["frido"] },
+      { step: 5, href: "/requests/new", label: "Request stock", icon: RiAddBoxLine, who: ["retailer", "ss"] },
+      { step: 6, href: "/approvals", label: "Approvals", icon: RiCheckboxCircleLine, who: ["frido"], badge: "approvals" },
+      { step: 7, href: "/fulfilment", label: "Fulfilment", icon: RiTruckLine, who: ["frido", "ss"], badge: "fulfilment" },
+      { step: 8, href: "/requests", label: "Tracking", icon: RiRouteLine, who: ALL },
+    ],
+  },
+  {
+    title: "Modules",
+    items: [
+      { href: "/stock/count", label: "Stock count", icon: RiListCheck3, who: ALL },
+      { href: "/returns", label: "Returns", icon: RiArrowGoBackLine, who: ALL },
+      { href: "/stock/issue", label: "Issue", icon: RiGiftLine, who: ALL },
+      { href: "/items", label: "Categorisation", icon: RiPriceTag3Line, who: ["frido"] },
+      { href: "/reports", label: "Reports", icon: RiBarChartBoxLine, who: ["retailer", "ss"] },
+    ],
+  },
+  {
+    title: "Admin",
+    items: [
+      { href: "/facilities", label: "Facilities", icon: RiBuilding2Line, who: ["frido"] },
+      { href: "/users", label: "Users", icon: RiTeamLine, who: ["frido"], admin: true },
+    ],
+  },
 ];
 
-export function AppShell({ profile, facilities, children }: { profile: Profile; facilities: Facility[]; children: ReactNode }) {
+const ALL_HREFS = NAV.flatMap((g) => g.items.map((i) => i.href));
+
+export function AppShell({
+  profile,
+  facilities,
+  reloadFacilities,
+  children,
+}: {
+  profile: Profile;
+  facilities: Facility[];
+  reloadFacilities: () => Promise<void>;
+  children: ReactNode;
+}) {
   const pathname = usePathname();
   const router = useRouter();
   const isAdmin = profile.role === "admin";
-  const isOps = isAdmin || profile.role === "ops";
+  const isManager = isAdmin || profile.role === "manager";
+  const isOps = isManager || profile.role === "ops";
   const [open, setOpen] = useState(false);
   const stockFacilities = useMemo(() => facilities.filter((f) => f.type !== "warehouse" && f.is_active), [facilities]);
   const [facilityId, setFacilityIdState] = useState<number | null>(isOps ? null : profile.facility_id);
@@ -86,16 +144,39 @@ export function AppShell({ profile, facilities, children }: { profile: Profile; 
   useEffect(() => setOpen(false), [pathname]);
 
   const facility = facilities.find((f) => f.id === facilityId) ?? null;
+  const audience: Audience = isOps ? "frido" : facility?.type === "super_stockist" ? "ss" : "retailer";
+  const [badges, setBadges] = useState<Record<Badge, number>>({ approvals: 0, fulfilment: 0 });
+
+  // counts shown next to Approvals / Fulfilment, refreshed on navigation
+  useEffect(() => {
+    const sb = supabaseBrowser();
+    (async () => {
+      const next: Record<Badge, number> = { approvals: 0, fulfilment: 0 };
+      if (isOps) {
+        const statuses = isManager ? ["pending_approval"] : ["submitted"];
+        const { count } = await sb.from("order_requests").select("id", { count: "exact", head: true }).in("status", statuses as never);
+        next.approvals = count ?? 0;
+      }
+      let fo = sb.from("fulfilment_orders").select("id", { count: "exact", head: true }).in("status", ["open", "partially_dispatched"]);
+      if (!isOps && facility) fo = fo.eq("fulfiller_id", facility.id);
+      if (isOps || audience === "ss") {
+        const { count } = await fo;
+        next.fulfilment = count ?? 0;
+      }
+      setBadges(next);
+    })();
+  }, [pathname, isOps, isManager, audience, facility]);
   const signOut = async () => {
     await supabaseBrowser().auth.signOut();
     router.replace("/login/");
   };
 
-  const isActive = (href: string) =>
-    href === "/" ? pathname === "/" : pathname === href || (pathname.startsWith(href + "/") && !NAV.some((n) => n.href !== href && n.href.startsWith(href + "/") && pathname.startsWith(n.href)));
+  // the most specific nav href that matches the current path wins
+  const path = pathname.replace(/\/$/, "") || "/";
+  const activeHref = ALL_HREFS.filter((h) => (h === "/" ? path === "/" : path === h || path.startsWith(h + "/"))).sort((a, b) => b.length - a.length)[0];
 
   return (
-    <Ctx.Provider value={{ profile, facilities, isOps, isAdmin, facility, setFacilityId }}>
+    <Ctx.Provider value={{ profile, facilities, isOps, isAdmin, isManager, audience, facility, setFacilityId, reloadFacilities }}>
       <div className="min-h-screen md:flex">
         <aside
           className={cx(
@@ -106,28 +187,52 @@ export function AppShell({ profile, facilities, children }: { profile: Profile; 
           <div className="flex items-center justify-between px-5 py-5">
             <Link href="/" className="flex items-baseline gap-2">
               <span className="text-2xl font-bold lowercase tracking-tight">frido</span>
-              <span className="rounded-xs bg-yellow px-1.5 py-0.5 text-[10px] font-bold uppercase text-ink">WMS</span>
+              <span className="rounded-xs bg-yellow px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ink">Partner Hub</span>
             </Link>
             <button className="md:hidden" onClick={() => setOpen(false)} aria-label="Close menu">
               <RiCloseLine />
             </button>
           </div>
-          <nav className="flex-1 overflow-y-auto px-3">
-            {NAV.filter((n) => (!n.ops || isOps) && (!n.admin || isAdmin)).map((n) => {
-              const active = isActive(n.href);
-              const Icon = n.icon;
+          <nav className="flex-1 overflow-y-auto px-3 pb-4">
+            {NAV.map((group, gi) => {
+              const items = group.items.filter((n) => n.who.includes(audience) && (!n.admin || isAdmin));
+              if (!items.length) return null;
               return (
-                <Link
-                  key={n.href}
-                  href={n.href}
-                  className={cx(
-                    "mb-0.5 flex items-center gap-3 rounded-md px-3 py-2.5 text-sm",
-                    active ? "bg-yellow font-semibold text-ink" : "text-n500 hover:bg-white/10 hover:text-white",
-                  )}
-                >
-                  <Icon size={18} />
-                  {n.label}
-                </Link>
+                <div key={gi} className={gi ? "mt-4" : ""}>
+                  {group.title && <p className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-widest text-n800">{group.title}</p>}
+                  {items.map((n) => {
+                    const active = n.href === activeHref;
+                    const Icon = n.icon;
+                    const count = n.badge ? badges[n.badge] : 0;
+                    return (
+                      <Link
+                        key={n.href + n.label}
+                        href={n.href}
+                        className={cx(
+                          "mb-0.5 flex items-center gap-3 rounded-md px-3 py-2 text-sm",
+                          active ? "bg-yellow font-semibold text-ink" : "text-n500 hover:bg-white/10 hover:text-white",
+                        )}
+                      >
+                        {n.step ? (
+                          <span
+                            className={cx(
+                              "flex size-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold",
+                              active ? "bg-ink text-yellow" : "bg-white/10 text-n500",
+                            )}
+                          >
+                            {n.step}
+                          </span>
+                        ) : (
+                          <Icon size={18} className="shrink-0" />
+                        )}
+                        <span className="flex-1 truncate">{n.label}</span>
+                        {count > 0 && (
+                          <span className={cx("rounded-full px-1.5 text-[11px] font-bold", active ? "bg-ink text-yellow" : "bg-yellow text-ink")}>{count}</span>
+                        )}
+                      </Link>
+                    );
+                  })}
+                </div>
               );
             })}
           </nav>

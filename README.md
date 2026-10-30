@@ -1,28 +1,30 @@
-# Frido WMS
+# Frido Partner Hub
 
-Stock management for Frido inventory at partner clinics (Neuromatics, Baner) and Frido's own STF store (STF Area, ATP).
+Stock management for Frido inventory held at retailers and clinics (first: Neuromatics, Baner), at super stockists (SS), and in Frido's own STF store (STF Area, ATP).
 Everything is tracked per **SKU**, per **facility**, per **bucket**.
 
-- `web/` – Next.js 15 app (App Router, Tailwind v4, Frido Design System v2 tokens)
+- `web/` – Next.js 15 app (static export, Tailwind v4, Frido Design System v2 tokens)
 - `supabase/migrations/` – Postgres schema, RLS and posting functions (already applied to the `frido-wms` Supabase project, Mumbai)
-- `docs/SPEC.md` – the v1 decisions this is built on
+- `supabase/functions/admin-create-user` – Edge Function behind Users → "Create login" / "Sign-in link"
+- `docs/SPEC.md` – the v1 decisions; `docs/SPEC-v2-partner-hub.md` – the Partner Hub lifecycle (Phase 1 is built); `docs/POS-BRIEF.md` – brief for the clinic / retailer POS
 
-## What it does
+## The lifecycle (Phase 1)
 
-| Area | Who | What happens |
+The navigation follows the steps of the product flow:
+
+| Step | Who | What happens |
 |---|---|---|
-| Facilities | Ops | Create clinics, stores and warehouses; category margins (e.g. 30% non-mobility, 10% mobility); curated SKU assortment per facility with MSP, margin override and min/max |
-| Item master | Ops | Upload the Uniware item-master CSV (daily). New SKUs are added, changed ones updated, missing ones disabled, nothing is deleted |
-| Order request + PO | Ops | Pick SKUs from the facility's assortment (or "Suggest from min/max"). Creates `REQ-…` and `PO-…` together. Gives a PDF PO, an Excel file, a paste-ready email to the warehouse and a PO email to Finance |
-| Dispatch | Ops | Enter what Uniware shipped (gate pass / invoice / DC / DN / cartons). Partial shipments and substitute SKUs are tracked against the original line |
-| Receive (GRN) | Facility | Scan barcodes (USB scanner or phone camera) or type quantities. Good units go to stock, damaged units go to the Damaged bucket. Captures DN / invoice / DC / gate pass, carton count and photos. Produces a discrepancy email |
-| Sales | Facility | Scan each product sold. For consignment partners each sale accrues MSP − margin payable to Frido |
-| Stock count | Facility | Open count (expected qty visible); posting corrects stock immediately. Also used for opening stock |
-| Issue | STF | Take stock out for training, demo, samples, internal use, or write off lost / scrapped |
-| Returns | Facility | Send damaged / slow stock back to the warehouse, with a paste-ready email |
-| Reports | All | Stock on hand, requested vs dispatched vs received (fill rate), monthly consignment settlement with a Finance email |
+| 1 Inward | Facility | Receive a shipment against what was dispatched: good units to stock, damaged to Damaged, **refused** units go straight back to the sender as a return, units nobody dispatched go to **Quarantine**. Captures DN / invoice / DC / gate pass, cartons and photos, and gives a discrepancy email. After a receipt: shortcuts to Return or Issue |
+| 3 Outward | Facility | Scan each product sold. For consignment partners each sale accrues MSP − margin payable to Frido |
+| 4 Stock & reconcile | Facility / Ops | Stock on hand by bucket, open counts that correct stock immediately, Quarantine that only Frido can accept into stock or send back |
+| 5 Demand planning | Ops | Every Monday 06:00 IST a draft request is made per facility: sales per day × (lead time + review + safety days) × season factor, within min / max, minus on hand and on the way. Retailers and SS can raise a request any time, pre-filled from the same plan |
+| 6 Approvals | Ops → Manager | The ops person assigned to the facility reviews and edits the request, then sends it for approval. The **manager approves in the app** (nobody approves their own request). Approval assigns the PO number |
+| 7 Fulfilment | SS / Ops | On approval each line is routed: first to the facility's super stockist if it has free stock, the rest to the Frido warehouse. Each fulfiller gets its own fulfilment order (`FO-…`) and records dispatch with courier + AWB |
+| 8 Tracking | All | Status timeline per request (created → submitted → sent for approval → approved → routed → dispatched → received → closed) with courier tracking links (Shiprocket, Delhivery, …) |
 
-**Buckets:** `Display / Sale` (sellable), `Display only`, `In use` (e.g. wheelchairs the clinic uses), `Damaged`.
+Also: Returns (to the warehouse or the SS, and receiving them back), Issue (training, demo, samples, write-off), Facilities (code = POS Store ID e.g. `FRIDO_0005`, region, supplying SS, assigned ops, planning settings, assortment and margins), item master upload from Uniware, reports and consignment settlement. Analytics (step 2 and reports) is Phase 2; Shopify POS / Uniware integrations and the category tree are Phase 3.
+
+**Buckets:** `Display / Sale` (sellable), `Display only`, `In use` (e.g. wheelchairs the clinic uses), `Damaged`, `Quarantine`.
 
 **Pricing:** partner price = MSP × (1 − margin), GST inclusive ("30 + GST on MSP"). Margin comes from the SKU override, else the facility's category margin, else the facility default. GST % and HSN come from the item master.
 
@@ -30,15 +32,16 @@ Everything is tracked per **SKU**, per **facility**, per **bucket**.
 
 ## How stock is stored
 
-Every movement is a row in `stock_ledger` (receipt, sale, count adjustment, bucket transfer, issue, return). A trigger keeps `stock_balances` in step and refuses anything that would go negative. All stock-changing writes go through `SECURITY DEFINER` functions (`create_order_request`, `create_shipment`, `post_grn`, `create_sale`, `post_stock_count`, `create_stock_issue`, `create_wh_return`, `move_stock`, `import_items_chunk`) that check the caller's role and facility. RLS limits facility staff to their own facility.
+Every movement is a row in `stock_ledger` (receipt, sale, count adjustment, bucket transfer, issue, dispatch, return). A trigger keeps `stock_balances` in step and refuses anything that would go negative or that would let a facility take units out of Quarantine. All stock-changing writes go through `SECURITY DEFINER` functions (`create_order_request`, `approve_request`, `dispatch_fulfilment_order`, `post_grn`, `create_sale`, `post_stock_count`, `create_stock_issue`, `create_wh_return`, `receive_return`, `resolve_quarantine`, `move_stock`, `import_items_chunk`, …) that check the caller's role and facility. RLS limits facility staff to their own facility; a super stockist also sees the orders it fulfils.
 
 ## Users and roles
 
 - **Admin** – everything, plus user management
-- **Ops** – all facilities: requests, dispatch, facilities, item master
-- **Facility staff** – their own facility only: receive, sell, count, issue, return, reports
+- **Manager** – approves requests (currently Shernyl Rana)
+- **Ops** – all facilities: review requests, dispatch, facilities, item master, quarantine decisions
+- **Facility staff** – their own retailer / SS / store: receive, sell, count, issue, return, request stock; an SS also dispatches to its retailers
 
-The **first account to sign up becomes admin**. Anyone who signs up later stays inactive until an admin activates them on the Users page. Admins can also create logins directly from the Users page.
+Logins are created by an admin on the Users page. No email is sent: **Create login + get link** (or **Sign-in link** on an existing user) gives a one-time link to share; it opens a page to set a password. Anyone who signs up on their own stays inactive until an admin activates them.
 
 ## Run locally
 
@@ -49,14 +52,12 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3000, create your account (becomes admin), then: Facilities → Neuromatics → add SKUs and MSPs → Stock count to load the opening stock delivered on 27 Oct → New request.
-
 ## Deploy (Netlify)
 
 The portal is a **static export** (`web/out`): every page reads and writes Supabase from the browser, so Netlify only serves files. `netlify.toml` builds `web/` and carries the public Supabase settings, so a connected repo deploys as-is. Record pages use `?id=` (e.g. `/requests/view/?id=12`).
 
-- Admin "Create login" runs in the Supabase Edge Function `supabase/functions/admin-create-user`, which checks the caller is an admin and uses the service-role key Supabase injects. Netlify needs no secrets.
-- Supabase → Authentication → URL Configuration: Site URL `https://wms-sis.netlify.app`.
+- The Edge Function `admin-create-user` checks the caller is an admin and uses the service-role key Supabase injects. Netlify needs no secrets.
+- Supabase → Authentication → URL Configuration: Site URL `https://wms-sis.netlify.app`, ideally with `https://wms-sis.netlify.app/reset-password/` under Redirect URLs (without it, sign-in links land on the home page, which forwards to the set-password page).
 - Optional: `NEXT_PUBLIC_COMPANY_NAME`, `NEXT_PUBLIC_COMPANY_GSTIN`, `NEXT_PUBLIC_COMPANY_ADDRESS` (Netlify env vars) for the supplier block on the PO PDF; redeploy after setting.
 
 ## Schema changes

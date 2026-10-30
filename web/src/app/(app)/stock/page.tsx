@@ -80,6 +80,24 @@ export default function StockPage() {
     load();
   };
 
+  const quarantine = rows.filter((r) => r.bucket === "quarantine");
+
+  const resolve = async (r: Row, action: "accept" | "return", qty: number) => {
+    if (!facility) return;
+    setErr(null);
+    const { error } = await supabaseBrowser().rpc("resolve_quarantine", {
+      p_facility_id: facility.id,
+      p_sku: r.sku,
+      p_qty: qty,
+      p_action: action,
+      p_bucket: "sellable",
+      p_to_facility_id: null as unknown as number,
+      p_note: null as unknown as string,
+    });
+    if (error) return setErr(errMsg(error));
+    load();
+  };
+
   if (!facility) return null;
   return (
     <>
@@ -115,7 +133,44 @@ export default function StockPage() {
           </>
         }
       />
-      <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+      {!allFac && quarantine.length > 0 && (
+        <Card
+          title={`Quarantine · ${quarantine.reduce((s, r) => s + r.qty, 0)} units outside a shipment`}
+          className="mb-6 border-y75"
+          pad={false}
+        >
+          <Table>
+            <tbody>
+              {quarantine.map((r) => (
+                <tr key={r.sku}>
+                  <Td>
+                    <div className="font-medium">{r.item_name}</div>
+                    <div className="text-xs text-n800">{r.sku}</div>
+                  </Td>
+                  <Td right className="font-semibold">
+                    {r.qty}
+                  </Td>
+                  <Td right>
+                    {isOps ? (
+                      <div className="flex justify-end gap-2">
+                        <Button size="sm" onClick={() => resolve(r, "accept", r.qty)}>
+                          Accept into stock
+                        </Button>
+                        <Button size="sm" variant="secondary" onClick={() => resolve(r, "return", r.qty)}>
+                          Send back
+                        </Button>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-n800">Waiting for Frido to decide</span>
+                    )}
+                  </Td>
+                </tr>
+              ))}
+            </tbody>
+          </Table>
+        </Card>
+      )}
+      <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-5">
         {BUCKETS.map((b) => (
           <Stat key={b.value} label={b.label} value={num(totals[b.value])} tone={b.value === "sellable" ? "yellow" : undefined} />
         ))}

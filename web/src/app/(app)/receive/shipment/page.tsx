@@ -4,6 +4,7 @@ import { paths, useIdParam } from "@/lib/paths";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { RiCameraLine } from "@remixicon/react";
+import { useApp } from "@/components/AppShell";
 import { ScanInput } from "@/components/ScanInput";
 import { findByCode } from "@/components/SkuPicker";
 import { Alert, Badge, Button, Card, Empty, Field, Input, PageHeader, Select, Table, Td, Th } from "@/components/ui";
@@ -15,8 +16,11 @@ interface Ship {
   id: number;
   shipment_no: string;
   facility_id: number;
+  from_facility_id: number | null;
   status: string;
   dispatched_at: string;
+  courier: string | null;
+  awb_no: string | null;
   uniware_ref: string | null;
   invoice_no: string | null;
   dc_no: string | null;
@@ -33,6 +37,9 @@ interface GLine {
   expected: number;
   received: number;
   damaged: number;
+  /** refused at the door: goes straight back to the sender */
+  rejected: number;
+  rejectReason: string;
   bucket: Bucket;
   reason: Reason | "";
   notes: string;
@@ -41,16 +48,21 @@ interface GLine {
 }
 
 const autoReason = (l: GLine): Reason => {
+  if (l.rejected > 0) return "rejected";
   if (!l.shipment_line_id) return "wrong_sku";
   if (l.damaged > 0) return "damaged";
-  if (l.received + l.damaged < l.expected) return "short";
-  if (l.received + l.damaged > l.expected) return "excess";
+  if (l.received + l.damaged + l.rejected < l.expected) return "short";
+  if (l.received + l.damaged + l.rejected > l.expected) return "excess";
   return "ok";
 };
+
+/** good units beyond what was dispatched (or never dispatched) wait in quarantine for Frido */
+const quarantined = (l: GLine) => (l.shipment_line_id ? Math.max(l.received - Math.max(l.expected - l.damaged - l.rejected, 0), 0) : l.received);
 
 export default function ReceiveShipment() {
   const shipmentId = useIdParam();
   const router = useRouter();
+  const { facilities } = useApp();
   const [ship, setShip] = useState<Ship | null>(null);
   const [lines, setLines] = useState<GLine[]>([]);
   const [h, setH] = useState({ dn_no: "", invoice_no: "", dc_no: "", gate_pass_no: "", cartons_received: "", notes: "" });
@@ -63,7 +75,7 @@ export default function ReceiveShipment() {
       const sb = supabaseBrowser();
       const { data: s } = await sb
         .from("shipments")
-        .select("id,shipment_no,facility_id,status,dispatched_at,uniware_ref,invoice_no,dc_no,dn_no,carton_count,order_requests(request_no)")
+        .select("id,shipment_no,facility_id,from_facility_id,status,dispatched_at,courier,awb_no,uniware_ref,invoice_no,dc_no,dn_no,carton_count,order_requests(request_no)")
         .eq("id", Number(shipmentId))
         .single();
       if (!s) return;
@@ -82,6 +94,8 @@ export default function ReceiveShipment() {
           expected: l.qty as number,
           received: 0,
           damaged: 0,
+          rejected: 0,
+          rejectReason: "damaged",
           bucket: ((l.order_request_lines as { bucket: Bucket } | null)?.bucket ?? "sellable") as Bucket,
           reason: "",
           notes: "",
@@ -110,7 +124,7 @@ export default function ReceiveShipment() {
     else
       setLines((ls) => [
         ...ls,
-        { key: `x${item.sku}`, shipment_line_id: null, sku: item.sku, name: item.name, expected: 0, received: 1, damaged: 0, bucket: "sellable", reason: "", notes: "", substitute: false, photos: [] },
+        { key: `x${item.sku}`, shipment_line_id: null, sku: item.sku, name: item.name, expected: 0, received: 1, damaged: 0, rejected: 0, rejectReason: "excess", bucket: "sellable", reason: "", notes: "", substitute: false, photos: [] },
       ]);
     setFlash({ tone: "green", text: `+1 ${item.sku}` });
   }, []);
@@ -129,6 +143,8 @@ export default function ReceiveShipment() {
         bucket: l.bucket,
         received_qty: l.received,
         damaged_qty: l.damaged,
+        rejected_qty: l.rejected,
+        reject_reason: l.rejected > 0 ? l.rejectReason : null,
         reason: l.reason || null,
         notes: l.notes || null,
       })),
@@ -157,13 +173,16 @@ export default function ReceiveShipment() {
   if (ship.status !== "in_transit") return <Empty title="This shipment has already been received" />;
 
   const sent = lines.reduce((s, l) => s + l.expected, 0);
-  const got = lines.reduce((s, l) => s + l.received + l.damaged, 0);
+  const got = lines.reduce((s, l) => s + l.received + l.damaged + l.rejected, 0);
+  const sender = facilities.find((f) => f.id === ship.from_facility_id);
+  const toQuarantine = lines.reduce((s, l) => s + quarantined(l), 0);
+  const refused = lines.reduce((s, l) => s + l.rejected, 0);
 
   return (
     <>
       <PageHeader
         title={`Receive ${ship.shipment_no}`}
-        subtitle={`${ship.order_requests?.request_no} · dispatched ${date(ship.dispatched_at)}${ship.carton_count != null ? ` · ${ship.carton_count} cartons` : ""}`}
+        subtitle={`${ship.order_requests?.request_no} · from ${sender?.name ?? "Frido WH"} · dispatched ${date(ship.dispatched_at)}${ship.carton_count != null ? ` · ${ship.carton_count} cartons` : ""}${ship.courier ? ` · ${ship.courier}${ship.awb_no ? " " + ship.awb_no : ""}` : ""}`}
         back={{ href: "/receive", label: "Receive" }}
       />
       <div className="grid gap-6 lg:grid-cols-3">
@@ -179,86 +198,12 @@ export default function ReceiveShipment() {
               <p className="text-sm text-n800">
                 Counted <span className="font-semibold text-ink tabular">{got}</span> of {sent} dispatched
               </p>
-              <Button variant="ghost" size="sm" onClick={() => setLines((ls) => ls.map((l) => (l.shipment_line_id ? { ...l, received: l.expected, damaged: 0 } : l)))}>
+              <Button variant="ghost" size="sm" onClick={() => setLines((ls) => ls.map((l) => (l.shipment_line_id ? { ...l, received: l.expected, damaged: 0, rejected: 0 } : l)))}>
                 Fill all as dispatched
               </Button>
             </div>
           </Card>
 
-          <Card title="Lines" pad={false}>
-            <Table>
-              <thead>
-                <tr>
-                  <Th>Product</Th>
-                  <Th right>Sent</Th>
-                  <Th right>Good</Th>
-                  <Th right>Damaged</Th>
-                  <Th>Into</Th>
-                  <Th>Issue</Th>
-                  <Th>Note / photo</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {lines.map((l) => {
-                  const r = l.reason || autoReason(l);
-                  return (
-                    <tr key={l.key} className={r !== "ok" ? "bg-red-c/40" : ""}>
-                      <Td>
-                        <div className="font-medium">{l.name}</div>
-                        <div className="text-xs text-n800">
-                          {l.sku} {l.substitute && <Badge tone="yellow">substitute</Badge>}
-                          {!l.shipment_line_id && <Badge tone="red">not dispatched</Badge>}
-                        </div>
-                      </Td>
-                      <Td right>{l.expected}</Td>
-                      <Td right>
-                        <Input type="number" min={0} value={l.received} onChange={(e) => patch(l.key, { received: Math.max(0, Number(e.target.value)) })} className="ml-auto h-9 w-20 text-right" />
-                      </Td>
-                      <Td right>
-                        <Input type="number" min={0} value={l.damaged} onChange={(e) => patch(l.key, { damaged: Math.max(0, Number(e.target.value)) })} className="ml-auto h-9 w-20 text-right" />
-                      </Td>
-                      <Td>
-                        <Select value={l.bucket} onChange={(e) => patch(l.key, { bucket: e.target.value as Bucket })} className="h-9 w-32">
-                          {BUCKETS.filter((b) => b.value !== "damaged").map((b) => (
-                            <option key={b.value} value={b.value}>
-                              {b.label}
-                            </option>
-                          ))}
-                        </Select>
-                      </Td>
-                      <Td>
-                        <Select value={l.reason} onChange={(e) => patch(l.key, { reason: e.target.value as Reason | "" })} className="h-9 w-32">
-                          <option value="">Auto: {REASONS.find((x) => x.value === autoReason(l))?.label}</option>
-                          {REASONS.map((x) => (
-                            <option key={x.value} value={x.value}>
-                              {x.label}
-                            </option>
-                          ))}
-                        </Select>
-                      </Td>
-                      <Td>
-                        <div className="flex items-center gap-2">
-                          <Input value={l.notes} onChange={(e) => patch(l.key, { notes: e.target.value })} className="h-9 w-36" placeholder="Note" />
-                          <label className="flex cursor-pointer items-center gap-1 text-xs text-n800 hover:text-ink" title="Add photos">
-                            <RiCameraLine size={16} />
-                            {l.photos.length > 0 && l.photos.length}
-                            <input
-                              type="file"
-                              accept="image/*"
-                              capture="environment"
-                              multiple
-                              className="hidden"
-                              onChange={(e) => patch(l.key, { photos: [...l.photos, ...Array.from(e.target.files ?? [])] })}
-                            />
-                          </label>
-                        </div>
-                      </Td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </Table>
-          </Card>
         </div>
 
         <Card title="Receipt details">
@@ -285,8 +230,109 @@ export default function ReceiveShipment() {
             <Button onClick={submit} disabled={busy}>
               {busy ? "Posting…" : "Post receipt"}
             </Button>
-            <p className="text-xs text-n800">Good units go into stock; damaged units go to the Damaged bucket for return.</p>
+            {refused > 0 && <Alert tone="yellow">{refused} unit{refused > 1 ? "s" : ""} refused: a return to {sender?.name ?? "Frido WH"} is created automatically.</Alert>}
+            {toQuarantine > 0 && <Alert tone="blue">{toQuarantine} unit{toQuarantine > 1 ? "s" : ""} not on this shipment go to Quarantine until Frido decides.</Alert>}
+            <p className="text-xs text-n800">
+              Good units go into stock. Damaged units you keep go to Damaged; units you refuse go straight back to the sender. Anything that wasn&apos;t dispatched waits in Quarantine.
+            </p>
           </div>
+        </Card>
+      </div>
+      <div className="mt-6">
+          <Card title="Lines" pad={false}>
+          <Table>
+            <thead>
+              <tr>
+                <Th>Product</Th>
+                <Th right>Sent</Th>
+                <Th right>Good</Th>
+                <Th right>Damaged</Th>
+                <Th right>Refuse</Th>
+                <Th>Into</Th>
+                <Th>Issue</Th>
+                <Th>Note / photo</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {lines.map((l) => {
+                const r = l.reason || autoReason(l);
+                return (
+                  <tr key={l.key} className={r !== "ok" ? "bg-red-c/40" : ""}>
+                    <Td>
+                      <div className="font-medium">{l.name}</div>
+                      <div className="text-xs text-n800">
+                        {l.sku} {l.substitute && <Badge tone="yellow">substitute</Badge>}
+                        {!l.shipment_line_id && <Badge tone="red">not dispatched</Badge>}
+                        {quarantined(l) > 0 && <Badge tone="yellow">{quarantined(l)} → quarantine</Badge>}
+                      </div>
+                    </Td>
+                    <Td right>{l.expected}</Td>
+                    <Td right>
+                      <Input type="number" min={0} value={l.received} onChange={(e) => patch(l.key, { received: Math.max(0, Number(e.target.value)) })} className="ml-auto h-9 w-20 text-right" />
+                    </Td>
+                    <Td right>
+                      <Input type="number" min={0} value={l.damaged} onChange={(e) => patch(l.key, { damaged: Math.max(0, Number(e.target.value)) })} className="ml-auto h-9 w-20 text-right" />
+                    </Td>
+                    <Td right>
+                      <div className="flex flex-col items-end gap-1">
+                        <Input
+                          type="number"
+                          min={0}
+                          value={l.rejected}
+                          onChange={(e) => patch(l.key, { rejected: Math.max(0, Number(e.target.value)) })}
+                          className="h-9 w-20 text-right"
+                        />
+                        {l.rejected > 0 && (
+                          <Select value={l.rejectReason} onChange={(e) => patch(l.key, { rejectReason: e.target.value })} className="h-8 w-28 text-xs">
+                            <option value="damaged">Damaged</option>
+                            <option value="wrong_sku">Wrong SKU</option>
+                            <option value="excess">Not ordered</option>
+                            <option value="other">Other</option>
+                          </Select>
+                        )}
+                      </div>
+                    </Td>
+                    <Td>
+                      <Select value={l.bucket} onChange={(e) => patch(l.key, { bucket: e.target.value as Bucket })} className="h-9 w-32">
+                        {BUCKETS.filter((b) => !["damaged", "quarantine"].includes(b.value)).map((b) => (
+                          <option key={b.value} value={b.value}>
+                            {b.label}
+                          </option>
+                        ))}
+                      </Select>
+                    </Td>
+                    <Td>
+                      <Select value={l.reason} onChange={(e) => patch(l.key, { reason: e.target.value as Reason | "" })} className="h-9 w-32">
+                        <option value="">Auto: {REASONS.find((x) => x.value === autoReason(l))?.label}</option>
+                        {REASONS.map((x) => (
+                          <option key={x.value} value={x.value}>
+                            {x.label}
+                          </option>
+                        ))}
+                      </Select>
+                    </Td>
+                    <Td>
+                      <div className="flex items-center gap-2">
+                        <Input value={l.notes} onChange={(e) => patch(l.key, { notes: e.target.value })} className="h-9 w-36" placeholder="Note" />
+                        <label className="flex cursor-pointer items-center gap-1 text-xs text-n800 hover:text-ink" title="Add photos">
+                          <RiCameraLine size={16} />
+                          {l.photos.length > 0 && l.photos.length}
+                          <input
+                            type="file"
+                            accept="image/*"
+                            capture="environment"
+                            multiple
+                            className="hidden"
+                            onChange={(e) => patch(l.key, { photos: [...l.photos, ...Array.from(e.target.files ?? [])] })}
+                          />
+                        </label>
+                      </div>
+                    </Td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </Table>
         </Card>
       </div>
     </>

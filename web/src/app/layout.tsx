@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Frido WMS",
-  description: "Stock, requests and receipts for Frido partner clinics and stores",
+  title: "Frido Partner Hub",
+  description: "Stock, requests, approvals and fulfilment across Frido retailers, super stockists and stores",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -45,21 +45,24 @@ export default function LoginPage() {
   return (
     <div className="grid min-h-screen md:grid-cols-2">
       <div className="hidden flex-col justify-between bg-ink p-12 text-white md:flex">
-        <span className="text-3xl font-bold lowercase tracking-tight">frido</span>
+        <span className="flex items-baseline gap-2">
+          <span className="text-3xl font-bold lowercase tracking-tight">frido</span>
+          <span className="rounded-xs bg-yellow px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ink">Partner Hub</span>
+        </span>
         <div>
           <p className="text-[44px] font-semibold leading-[1.1] tracking-tight">
             Stock that <span className="text-yellow">moves</span>
             <br />
             with our partners.
           </p>
-          <p className="mt-4 max-w-sm text-n600">Order requests, receipts, sales and settlements for Frido clinics and stores.</p>
+          <p className="mt-4 max-w-sm text-n600">Inward, outward, demand, approvals and fulfilment across Frido retailers, super stockists and stores.</p>
         </div>
         <p className="text-xs uppercase tracking-widest text-n800">Freedom To Do More</p>
       </div>
       <div className="flex items-center justify-center p-6">
         <form onSubmit={submit} className="w-full max-w-sm">
           <span className="mb-8 block text-3xl font-bold lowercase tracking-tight md:hidden">frido</span>
-          <h1 className="text-[28px] font-semibold tracking-tight">{mode === "signin" ? "Sign in to WMS" : "Create account"}</h1>
+          <h1 className="text-[28px] font-semibold tracking-tight">{mode === "signin" ? "Sign in to Partner Hub" : "Create account"}</h1>
           <p className="mt-1 text-sm text-n800">
             {mode === "signin" ? "Use the email and password your admin set up." : "The first account becomes the admin. Others need an admin to activate them."}
           </p>
