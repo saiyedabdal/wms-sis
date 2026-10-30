@@ -1,7 +1,11 @@
 # Frido POS: design (prototype build)
 
-Status: **working prototype on branch `claude/frido-pos-partner-brief-67w213`**, built from `docs/POS-BRIEF.md` (Rev 2) and `docs/POS-DECISIONS.md`.
-The design checkpoint was skipped at the user's request ("build a proto with what you know; keep open decisions open"). This file describes what was built, the assumptions it makes, and the changes proposed for the Partner Hub. Nothing has been applied to the live Supabase project yet.
+Status: **live prototype**, built from `docs/POS-BRIEF.md` (Rev 2) and `docs/POS-DECISIONS.md` on branch `claude/frido-pos-partner-brief-67w213`.
+- **Database:** both `pos_` migrations were applied to `frido-wms` on 30 Oct 2026 (`20261030194621 pos_core`, `20261030195159 pos_rpc`).
+- **App:** deployed to **https://wms-sis-pos.netlify.app** (Netlify project `wms-sis-pos`, team Founders Office).
+- **Data:** no clinic is on the POS yet. A Frido super admin or ops user does that from Admin → Setup (§12).
+
+The design checkpoint was skipped at the user's request ("build a proto with what you know; keep open decisions open"). This file describes what was built, the assumptions it makes, and the changes proposed for the Partner Hub.
 
 ## 1. Shape of the system
 
@@ -171,7 +175,7 @@ Tablet landscape first (1280×800), with desktop and phone layouts. Frido Design
 | 8 | **Return / exchange** (`/returns?invoice=`) | Per-line qty stepper + Resell/Damaged, reason chips, Exchange / Refund online (UPI ID, bank account, Razorpay), credit value bar, manager PIN, admin PIN if late; success shows the credit note and "Ring up the replacement" (carries the customer, referral and credit into the cart) | Banner: returns location is still an open decision |
 | 10 | **Cash & day end** | Live X-report (takings by mode, drawer maths, by staff), petty cash (categories), bank deposit, cash in, Close day with a denomination counter, Z-report, closed-shift history | Till closed; variance needs a note; cash-out above the drawer refused |
 | 11 | **Reports** | Presets + dates; KPI tiles (net sales, orders + average bill, units sold/returned, new vs returning); net-sales-by-day bars (one hue, hover tooltip, table equivalent); top products, category, staff, therapist, payment reconciliation, daily figures; **Export to Excel** (8 sheets) | "Nothing in this period" rows |
-| 12 | **Admin** | Needs attention · Refunds (mark paid with UTR) · Therapists & doctors · Staff & PINs (+ change my PIN) · Data health (SKUs that can't be invoiced) · Setup (Frido ops: series, modes, limits, return window, footer, add till) | Role-scoped tabs |
+| 12 | **Admin** | Needs attention · Refunds (mark paid with UTR) · Therapists & doctors · Staff & PINs (+ change my PIN; Frido ops: **Add a person** from Partner Hub logins) · Data health (SKUs that can't be invoiced) · Setup (Frido ops: **Put a clinic on the POS**: facility, invoicing entity (pick or create), series codes, payment modes, first till; then series, modes, limits, return window, footer, add till) | Role-scoped tabs; with no clinic on the POS, only Setup shows |
 
 ## 6. Folder structure
 
@@ -229,7 +233,26 @@ Edge Function secrets:
   - `30_concurrency.sh`:
     - 10 parallel retries of one checkout → one invoice;
     - 36 parallel tills for 26 units → 26 sold, 10 refused, stock 0, numbers contiguous.
-- **Not run yet: Supabase security and performance advisors.** They need a Supabase project, and the migrations haven't been applied to one (see Next steps).
+- **Before applying to `frido-wms`:**
+  - The branch was merged with the latest Hub branch, which added the `super_admin` role. `pos_admin_set_staff` now also accepts super admins as POS admins.
+  - All 96 checks were re-run on the same migration history as live. `create_sale`, `is_ops`, `is_admin` and `can_access_facility` hash-match live.
+- **After applying:**
+  - **Fingerprint:** all 35 `pos_` function definitions hash-match the tested build, and the 20 tables and 29 policies are present.
+  - **Advisors, run after each migration.** Every new finding is by design:
+    - `pos_staff_sessions` has RLS with no policy (INFO). Only the POS functions touch it; the browser has no access.
+    - 22 `pos_*` RPCs are callable by signed-in users (WARN). Each checks facility access and the PIN token, the same pattern as the Hub's own RPCs.
+    - `pos_public_document` is callable by anon (WARN). It's the token-gated share link and returns one document with the phone masked.
+    - Unused indexes on the new, empty tables (INFO).
+    - No unindexed foreign keys and no duplicate permissive policies on `pos_` tables.
+  - **Live smoke test, rolled back.** A single block ran:
+    1. Clinic setup → count stock.
+    2. Checkout → invoice `ZZS1/2627/000001`, Hub sale `SAL-…` with `bill_ref` = that number, settlement MSP ₹1,000 at a 10% margin (₹900 payable), stock 5 → 3.
+    3. Return → credit note `ZZR1/2627/000001`, stock → 4.
+    4. Share link opens.
+
+    The block then raised an error on purpose. Afterwards no `pos_`, sales or ledger rows remained.
+- **First-time setup:** tested end to end on an unconfigured copy (`docs/pos-prototype/on-*.png`). A super admin puts Neuromatics on the POS, adds a cashier and themselves as POS admin, and the cashier's PIN opens the till.
+- **Deployed site:** checked in a browser. The login page renders; a signed-out visitor is redirected to `/login/`; the anonymous `pos_public_document` call returns 200 from live; no page errors.
 
 **Prototype walkthrough:**
 - **Setup:** a local demo stack: the same migrations, 20 real Frido SKUs and images from the item master, 3 staff with PINs, 4 therapists, and a week of history created through `pos_checkout`.
@@ -276,7 +299,7 @@ Edge Function secrets:
 | Milestone | What | Needs |
 |---|---|---|
 | M0 Prototype | **Done on this branch** (all slices above) | – |
-| M1 Pilot at Neuromatics | Apply both `pos_` migrations to `frido-wms` + run advisors; create real logins and PINs; fix assortment MSP/HSN/GST; second Netlify site from `pos/`; printer setup per till (RawBT on Android, USB on PC); staff training | Your go-ahead to touch the live project; Finance answers (entity, GSTIN, rates); returns decision |
+| M1 Pilot at Neuromatics | ~~Apply both `pos_` migrations to `frido-wms` + run advisors~~ (done 30 Oct); ~~second Netlify site from `pos/`~~ (done: wms-sis-pos.netlify.app); put Neuromatics on the POS (Admin → Setup) once its invoicing entity is known; create real clinic logins in the Hub and their PINs; fix assortment MSP/HSN/GST; printer setup per till (RawBT on Android, USB on PC); staff training | Finance answers (entity, GSTIN, rates); returns decision |
 | M2 Money paths | Razorpay keys + webhook live for Frido-invoiced facilities; petty-cash receipt photos (Storage bucket `pos-receipts`); H1 + H2 in the Hub | Razorpay account per entity; H1/H2 approval |
 | M3 Polish | Needs-attention alerts (email/WhatsApp to the manager); connectivity report; customer purchase history in the sheet; per-clinic printer test page | – |
 
@@ -286,3 +309,4 @@ Edge Function secrets:
 
 - **Tests:** `PGHOST=<socket dir> PGPORT=<port> supabase/tests/pos/run.sh` against any local Postgres 16 superuser.
 - **App:** `cd pos && npm install && npm run dev`. Put `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` in `pos/.env.local` (see `.env.example`). It needs the `pos_` migrations applied to that project.
+- **Deploy:** the Netlify project `wms-sis-pos` isn't connected to Git yet; each deploy is a manual upload of `pos/`, which Netlify builds with `pos/netlify.toml`. To deploy on every push, connect the repo in Netlify with base directory `pos` and the production branch you choose.
