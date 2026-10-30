@@ -13,6 +13,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<State>({ kind: "loading" });
 
   useEffect(() => {
+    // sign-in links that fell back to the site root still carry their recovery token: finish them properly
+    if (/type=(recovery|invite)/.test(window.location.hash)) {
+      window.location.replace("/reset-password/" + window.location.hash);
+      return;
+    }
     const sb = supabaseBrowser();
     (async () => {
       const {
@@ -50,8 +55,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </div>
     );
   }
+  const reloadFacilities = async () => {
+    const { data } = await supabaseBrowser().from("facilities").select("*").order("name");
+    setState((st) => (st.kind === "ready" ? { ...st, facilities: (data ?? []) as Facility[] } : st));
+  };
+
   return (
-    <AppShell profile={state.profile} facilities={state.facilities}>
+    <AppShell profile={state.profile} facilities={state.facilities} reloadFacilities={reloadFacilities}>
       {/* record pages read ?id= via useSearchParams, which needs a Suspense boundary in a static export */}
       <Suspense>{children}</Suspense>
     </AppShell>

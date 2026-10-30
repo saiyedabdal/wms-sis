@@ -11,7 +11,7 @@ export const COMPANY = {
 
 export interface RequestDoc {
   request_no: string;
-  po_no: string;
+  po_no: string | null;
   created_at: string;
   notes: string | null;
 }
@@ -27,7 +27,10 @@ const facilityAddress = (f: Facility) =>
 
 const facilityContact = (f: Facility) => [f.contact_name, f.contact_phone].filter(Boolean).join(" · ");
 
-export function warehouseRequestEmail(req: RequestDoc, facility: Facility, lines: RequestLineView[]) {
+/** Lines a fulfiller must send: request lines or a fulfilment order's pending lines. */
+export type DispatchLine = Pick<RequestLineView, "sku" | "item_name" | "requested_qty" | "bucket">;
+
+export function warehouseRequestEmail(req: RequestDoc & { fo_no?: string }, facility: Facility, lines: DispatchLine[]) {
   const totalQty = lines.reduce((s, l) => s + l.requested_qty, 0);
   const table = [
     `${pad("#", 4)}${pad("SKU", 22)}${pad("Product", 46)}${pad("Qty", 6, true)}  Purpose`,
@@ -40,10 +43,10 @@ export function warehouseRequestEmail(req: RequestDoc, facility: Facility, lines
   ].join("\n");
 
   return {
-    subject: `Stock request ${req.request_no} – ${facility.name} (${facility.code})`,
+    subject: `Stock request ${req.fo_no ?? req.request_no} – ${facility.name} (${facility.code})`,
     body: `Hi Team,
 
-Please dispatch the following stock to ${facility.name} against request ${req.request_no} (PO ${req.po_no}).
+Please dispatch the following stock to ${facility.name} against request ${req.request_no}${req.po_no ? ` (PO ${req.po_no})` : ""}${req.fo_no ? `, fulfilment order ${req.fo_no}` : ""}.
 
 ${table}
 
@@ -100,6 +103,8 @@ export interface GrnLineDoc {
   expected_qty: number;
   received_qty: number;
   damaged_qty: number;
+  rejected_qty?: number;
+  quarantine_qty?: number;
   reason: string;
   notes: string | null;
   substitute_for?: string | null;
@@ -110,17 +115,20 @@ export function discrepancyEmail(
   facility: Facility,
   lines: GrnLineDoc[],
 ) {
-  const issues = lines.filter((l) => l.reason !== "ok" || l.damaged_qty > 0 || l.received_qty + l.damaged_qty !== l.expected_qty);
+  const issues = lines.filter((l) => l.reason !== "ok" || l.damaged_qty > 0 || (l.rejected_qty ?? 0) > 0 || (l.quarantine_qty ?? 0) > 0 || l.received_qty + l.damaged_qty !== l.expected_qty);
   const table = [
     `${pad("SKU", 22)}${pad("Product", 40)}${pad("Sent", 6, true)}${pad("Good", 6, true)}${pad("Dmg", 5, true)}  Issue`,
     "-".repeat(96),
     ...issues.map((l) => {
-      const diff = l.expected_qty - l.received_qty - l.damaged_qty;
+      const rej = l.rejected_qty ?? 0;
+      const quar = l.quarantine_qty ?? 0;
+      const diff = l.expected_qty - l.received_qty - l.damaged_qty - rej;
       const what = [
-        l.reason === "wrong_sku" ? "WRONG SKU / NOT DISPATCHED" : "",
+        l.expected_qty === 0 ? "NOT DISPATCHED" : "",
         l.damaged_qty > 0 ? `DAMAGED ${l.damaged_qty}` : "",
+        rej > 0 ? `REFUSED ${rej} (sent back)` : "",
         diff > 0 ? `SHORT ${diff}` : "",
-        diff < 0 && l.reason !== "wrong_sku" ? `EXCESS ${-diff}` : "",
+        quar > 0 ? `${quar} HELD IN QUARANTINE` : "",
       ]
         .filter(Boolean)
         .join(" + ");

@@ -10,14 +10,15 @@ export default function FacilitiesPage() {
   const { facilities } = useApp();
   return (
     <>
-      <PageHeader title="Facilities" subtitle="Clinics, stores and warehouses that hold or ship Frido stock" actions={<LinkButton href="/facilities/new">New facility</LinkButton>} />
+      <PageHeader title="Facilities" subtitle="Retailers, super stockists, Frido stores and warehouses. Map each retailer to the super stockist that supplies it." actions={<LinkButton href="/facilities/new">New facility</LinkButton>} />
       <Card pad={false}>
         <Table>
           <thead>
             <tr>
               <Th>Facility</Th>
               <Th>Type</Th>
-              <Th>City</Th>
+              <Th>Region</Th>
+              <Th>Supplied by</Th>
               <Th right>Default margin</Th>
               <Th>Flags</Th>
             </tr>
@@ -32,7 +33,8 @@ export default function FacilitiesPage() {
                   <div className="text-xs text-n800">{f.code}</div>
                 </Td>
                 <Td>{FACILITY_TYPES.find((t) => t.value === f.type)?.label}</Td>
-                <Td>{f.city ?? "—"}</Td>
+                <Td>{f.region ?? f.city ?? "—"}</Td>
+                <Td>{f.type === "warehouse" ? "—" : facilities.find((x) => x.id === f.fulfiller_ss_id)?.name ?? (f.type === "super_stockist" ? "Frido WH" : "Frido WH only")}</Td>
                 <Td right>{Number(f.default_margin_pct)}%</Td>
                 <Td>
                   <div className="flex gap-1">

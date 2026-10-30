@@ -3,7 +3,8 @@
 import { useIdParam } from "@/lib/paths";
 import { useEffect, useState } from "react";
 import { useApp } from "@/components/AppShell";
-import { Badge, Card, CopyBlock, Empty, PageHeader, StatusBadge, Table, Td, Th } from "@/components/ui";
+import Link from "next/link";
+import { Badge, Card, CopyBlock, Empty, LinkButton, PageHeader, StatusBadge, Table, Td, Th } from "@/components/ui";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { bucketLabel, type Bucket } from "@/lib/types";
 import { dateTime } from "@/lib/format";
@@ -32,16 +33,19 @@ export default function GrnDetail() {
   const [g, setG] = useState<Grn | null>(null);
   const [lines, setLines] = useState<Line[]>([]);
   const [photos, setPhotos] = useState<{ url: string; line: number | null }[]>([]);
+  const [ret, setRet] = useState<{ return_no: string; status: string; to_facility_id: number | null } | null>(null);
 
   useEffect(() => {
     (async () => {
       const sb = supabaseBrowser();
       const [{ data: grn }, { data: gl }, { data: ph }] = await Promise.all([
         sb.from("grns").select("*,shipments(shipment_no,uniware_ref,carton_count,order_requests(request_no))").eq("id", Number(id)).single(),
-        sb.from("grn_lines").select("id,sku,bucket,expected_qty,received_qty,damaged_qty,reason,notes,items(name)").eq("grn_id", Number(id)).order("id"),
+        sb.from("grn_lines").select("id,sku,bucket,expected_qty,received_qty,damaged_qty,rejected_qty,quarantine_qty,reason,notes,items(name)").eq("grn_id", Number(id)).order("id"),
         sb.from("grn_photos").select("storage_path,grn_line_id").eq("grn_id", Number(id)),
       ]);
       setG(grn as unknown as Grn);
+      const { data: r } = await sb.from("wh_returns").select("return_no,status,to_facility_id").eq("grn_id", Number(id)).maybeSingle();
+      setRet(r);
       setLines(((gl ?? []) as Record<string, unknown>[]).map((l) => ({ ...(l as unknown as Line), item_name: (l.items as { name: string } | null)?.name ?? (l.sku as string) })));
       if (ph?.length) {
         const { data: signed } = await sb.storage.from("grn-photos").createSignedUrls(ph.map((p) => p.storage_path), 3600);
@@ -92,6 +96,8 @@ export default function GrnDetail() {
                 <Th right>Sent</Th>
                 <Th right>Good</Th>
                 <Th right>Damaged</Th>
+                <Th right>Refused</Th>
+                <Th right>Quarantine</Th>
                 <Th>Result</Th>
                 <Th>Photos</Th>
               </tr>
@@ -110,6 +116,12 @@ export default function GrnDetail() {
                   <Td right>{l.expected_qty}</Td>
                   <Td right>{l.received_qty}</Td>
                   <Td right>{l.damaged_qty}</Td>
+                  <Td right className={l.rejected_qty ? "text-red-a" : "text-n700"}>
+                    {l.rejected_qty ?? 0}
+                  </Td>
+                  <Td right className={l.quarantine_qty ? "font-semibold" : "text-n700"}>
+                    {l.quarantine_qty ?? 0}
+                  </Td>
                   <Td>
                     <StatusBadge status={l.reason} />
                   </Td>
@@ -138,8 +150,29 @@ export default function GrnDetail() {
             </span>
           </div>
         </Card>
+        {ret && (
+          <Card>
+            <p className="text-sm">
+              Refused units are on return <span className="font-semibold">{ret.return_no}</span> to{" "}
+              {facilities.find((f) => f.id === ret.to_facility_id)?.name ?? "Frido WH"} · <StatusBadge status={ret.status} />{" "}
+              <Link href="/returns" className="text-blue hover:underline">
+                Returns
+              </Link>
+            </p>
+          </Card>
+        )}
+        <Card title="Next">
+          <div className="flex flex-wrap gap-2">
+            <LinkButton href={`/returns/?grn=${g.id}`} variant="secondary">
+              Return items from this receipt
+            </LinkButton>
+            <LinkButton href={`/stock/issue/?grn=${g.id}`} variant="secondary">
+              Issue items (training / demo / sample)
+            </LinkButton>
+          </div>
+        </Card>
         {g.has_discrepancy ? (
-          <CopyBlock title="Discrepancy email to warehouse" subject={mail.subject} body={mail.body} />
+          <CopyBlock title="Discrepancy email to the sender" subject={mail.subject} body={mail.body} />
         ) : (
           <Card>
             <p className="text-sm text-n800">Everything matched the dispatch. No email needed.</p>

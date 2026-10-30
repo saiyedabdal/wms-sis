@@ -140,7 +140,12 @@ export function Badge({ tone = "neutral", children }: { tone?: Tone; children: R
 }
 
 const statusTone: Record<string, Tone> = {
-  raised: "yellow",
+  draft: "neutral",
+  submitted: "yellow",
+  pending_approval: "yellow",
+  approved: "blue",
+  rejected: "red",
+  open: "yellow",
   partially_dispatched: "blue",
   dispatched: "blue",
   in_transit: "blue",

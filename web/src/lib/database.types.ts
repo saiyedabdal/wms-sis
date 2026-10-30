@@ -43,6 +43,36 @@ export type Database = {
           },
         ]
       }
+      demand_runs: {
+        Row: {
+          drafts_created: number
+          facilities_planned: number
+          id: number
+          lines_suggested: number
+          run_at: string
+          run_by: string | null
+          trigger: string
+        }
+        Insert: {
+          drafts_created?: number
+          facilities_planned?: number
+          id?: never
+          lines_suggested?: number
+          run_at?: string
+          run_by?: string | null
+          trigger?: string
+        }
+        Update: {
+          drafts_created?: number
+          facilities_planned?: number
+          id?: never
+          lines_suggested?: number
+          run_at?: string
+          run_by?: string | null
+          trigger?: string
+        }
+        Relationships: []
+      }
       doc_counters: {
         Row: {
           last_no: number
@@ -71,15 +101,22 @@ export type Database = {
           contact_phone: string | null
           created_at: string
           default_margin_pct: number
+          fulfiller_ss_id: number | null
           gstin: string | null
           id: number
           is_active: boolean
           is_consignment: boolean
+          lead_time_days: number
           legal_name: string | null
           name: string
           notes: string | null
           pincode: string | null
+          planning_enabled: boolean
+          pos_location: string | null
+          region: string | null
           restrict_to_assortment: boolean
+          review_days: number
+          safety_days: number
           state: string | null
           type: Database["public"]["Enums"]["facility_type"]
         }
@@ -92,15 +129,22 @@ export type Database = {
           contact_phone?: string | null
           created_at?: string
           default_margin_pct?: number
+          fulfiller_ss_id?: number | null
           gstin?: string | null
           id?: never
           is_active?: boolean
           is_consignment?: boolean
+          lead_time_days?: number
           legal_name?: string | null
           name: string
           notes?: string | null
           pincode?: string | null
+          planning_enabled?: boolean
+          pos_location?: string | null
+          region?: string | null
           restrict_to_assortment?: boolean
+          review_days?: number
+          safety_days?: number
           state?: string | null
           type: Database["public"]["Enums"]["facility_type"]
         }
@@ -113,19 +157,34 @@ export type Database = {
           contact_phone?: string | null
           created_at?: string
           default_margin_pct?: number
+          fulfiller_ss_id?: number | null
           gstin?: string | null
           id?: never
           is_active?: boolean
           is_consignment?: boolean
+          lead_time_days?: number
           legal_name?: string | null
           name?: string
           notes?: string | null
           pincode?: string | null
+          planning_enabled?: boolean
+          pos_location?: string | null
+          region?: string | null
           restrict_to_assortment?: boolean
+          review_days?: number
+          safety_days?: number
           state?: string | null
           type?: Database["public"]["Enums"]["facility_type"]
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "facilities_fulfiller_ss_id_fkey"
+            columns: ["fulfiller_ss_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       facility_assortment: {
         Row: {
@@ -204,6 +263,144 @@ export type Database = {
           },
         ]
       }
+      facility_ops: {
+        Row: {
+          facility_id: number
+          user_id: string
+        }
+        Insert: {
+          facility_id: number
+          user_id: string
+        }
+        Update: {
+          facility_id?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "facility_ops_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "facility_ops_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fulfilment_order_lines: {
+        Row: {
+          fo_id: number
+          id: number
+          qty: number
+          request_line_id: number | null
+          sku: string
+        }
+        Insert: {
+          fo_id: number
+          id?: never
+          qty: number
+          request_line_id?: number | null
+          sku: string
+        }
+        Update: {
+          fo_id?: number
+          id?: never
+          qty?: number
+          request_line_id?: number | null
+          sku?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fulfilment_order_lines_fo_id_fkey"
+            columns: ["fo_id"]
+            isOneToOne: false
+            referencedRelation: "fulfilment_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fulfilment_order_lines_request_line_id_fkey"
+            columns: ["request_line_id"]
+            isOneToOne: false
+            referencedRelation: "order_request_lines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fulfilment_order_lines_request_line_id_fkey"
+            columns: ["request_line_id"]
+            isOneToOne: false
+            referencedRelation: "v_request_lines"
+            referencedColumns: ["request_line_id"]
+          },
+          {
+            foreignKeyName: "fulfilment_order_lines_sku_fkey"
+            columns: ["sku"]
+            isOneToOne: false
+            referencedRelation: "items"
+            referencedColumns: ["sku"]
+          },
+        ]
+      }
+      fulfilment_orders: {
+        Row: {
+          closed_at: string | null
+          created_at: string
+          facility_id: number
+          fo_no: string
+          fulfiller_id: number
+          id: number
+          request_id: number
+          status: Database["public"]["Enums"]["fo_status"]
+        }
+        Insert: {
+          closed_at?: string | null
+          created_at?: string
+          facility_id: number
+          fo_no: string
+          fulfiller_id: number
+          id?: never
+          request_id: number
+          status?: Database["public"]["Enums"]["fo_status"]
+        }
+        Update: {
+          closed_at?: string | null
+          created_at?: string
+          facility_id?: number
+          fo_no?: string
+          fulfiller_id?: number
+          id?: never
+          request_id?: number
+          status?: Database["public"]["Enums"]["fo_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fulfilment_orders_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fulfilment_orders_fulfiller_id_fkey"
+            columns: ["fulfiller_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fulfilment_orders_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "order_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       grn_lines: {
         Row: {
           bucket: Database["public"]["Enums"]["stock_bucket"]
@@ -212,8 +409,10 @@ export type Database = {
           grn_id: number
           id: number
           notes: string | null
+          quarantine_qty: number
           reason: Database["public"]["Enums"]["discrepancy_reason"]
           received_qty: number
+          rejected_qty: number
           shipment_line_id: number | null
           sku: string
         }
@@ -224,8 +423,10 @@ export type Database = {
           grn_id: number
           id?: never
           notes?: string | null
+          quarantine_qty?: number
           reason?: Database["public"]["Enums"]["discrepancy_reason"]
           received_qty?: number
+          rejected_qty?: number
           shipment_line_id?: number | null
           sku: string
         }
@@ -236,8 +437,10 @@ export type Database = {
           grn_id?: number
           id?: never
           notes?: string | null
+          quarantine_qty?: number
           reason?: Database["public"]["Enums"]["discrepancy_reason"]
           received_qty?: number
+          rejected_qty?: number
           shipment_line_id?: number | null
           sku?: string
         }
@@ -518,6 +721,7 @@ export type Database = {
           qty: number
           request_id: number
           sku: string
+          suggested_qty: number | null
           unit_price: number | null
         }
         Insert: {
@@ -530,6 +734,7 @@ export type Database = {
           qty: number
           request_id: number
           sku: string
+          suggested_qty?: number | null
           unit_price?: number | null
         }
         Update: {
@@ -542,6 +747,7 @@ export type Database = {
           qty?: number
           request_id?: number
           sku?: string
+          suggested_qty?: number | null
           unit_price?: number | null
         }
         Relationships: [
@@ -566,39 +772,76 @@ export type Database = {
           closed_at: string | null
           created_at: string
           created_by: string | null
+          decided_at: string | null
+          decided_by: string | null
+          decision_note: string | null
+          demand_run_id: number | null
           facility_id: number
           id: number
+          lines_edited_at: string | null
           notes: string | null
-          po_no: string
+          po_no: string | null
           request_no: string
+          sent_for_approval_at: string | null
+          sent_for_approval_by: string | null
+          source: string
           status: Database["public"]["Enums"]["request_status"]
+          submitted_at: string | null
+          submitted_by: string | null
           warehouse_id: number | null
         }
         Insert: {
           closed_at?: string | null
           created_at?: string
           created_by?: string | null
+          decided_at?: string | null
+          decided_by?: string | null
+          decision_note?: string | null
+          demand_run_id?: number | null
           facility_id: number
           id?: never
+          lines_edited_at?: string | null
           notes?: string | null
-          po_no: string
+          po_no?: string | null
           request_no: string
+          sent_for_approval_at?: string | null
+          sent_for_approval_by?: string | null
+          source?: string
           status?: Database["public"]["Enums"]["request_status"]
+          submitted_at?: string | null
+          submitted_by?: string | null
           warehouse_id?: number | null
         }
         Update: {
           closed_at?: string | null
           created_at?: string
           created_by?: string | null
+          decided_at?: string | null
+          decided_by?: string | null
+          decision_note?: string | null
+          demand_run_id?: number | null
           facility_id?: number
           id?: never
+          lines_edited_at?: string | null
           notes?: string | null
-          po_no?: string
+          po_no?: string | null
           request_no?: string
+          sent_for_approval_at?: string | null
+          sent_for_approval_by?: string | null
+          source?: string
           status?: Database["public"]["Enums"]["request_status"]
+          submitted_at?: string | null
+          submitted_by?: string | null
           warehouse_id?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "order_requests_demand_run_id_fkey"
+            columns: ["demand_run_id"]
+            isOneToOne: false
+            referencedRelation: "demand_runs"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "order_requests_facility_id_fkey"
             columns: ["facility_id"]
@@ -755,8 +998,27 @@ export type Database = {
           },
         ]
       }
+      season_factors: {
+        Row: {
+          category_name: string
+          factor: number
+          month: number
+        }
+        Insert: {
+          category_name: string
+          factor?: number
+          month: number
+        }
+        Update: {
+          category_name?: string
+          factor?: number
+          month?: number
+        }
+        Relationships: []
+      }
       shipment_lines: {
         Row: {
+          fo_line_id: number | null
           id: number
           is_substitute: boolean
           qty: number
@@ -765,6 +1027,7 @@ export type Database = {
           sku: string
         }
         Insert: {
+          fo_line_id?: number | null
           id?: never
           is_substitute?: boolean
           qty: number
@@ -773,6 +1036,7 @@ export type Database = {
           sku: string
         }
         Update: {
+          fo_line_id?: number | null
           id?: never
           is_substitute?: boolean
           qty?: number
@@ -781,6 +1045,20 @@ export type Database = {
           sku?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "shipment_lines_fo_line_id_fkey"
+            columns: ["fo_line_id"]
+            isOneToOne: false
+            referencedRelation: "fulfilment_order_lines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shipment_lines_fo_line_id_fkey"
+            columns: ["fo_line_id"]
+            isOneToOne: false
+            referencedRelation: "v_fo_lines"
+            referencedColumns: ["fo_line_id"]
+          },
           {
             foreignKeyName: "shipment_lines_request_line_id_fkey"
             columns: ["request_line_id"]
@@ -819,9 +1097,12 @@ export type Database = {
           created_at: string
           created_by: string | null
           dc_no: string | null
+          delivered_at: string | null
           dispatched_at: string
           dn_no: string | null
           facility_id: number
+          from_facility_id: number | null
+          fulfilment_order_id: number | null
           id: number
           invoice_no: string | null
           notes: string | null
@@ -837,9 +1118,12 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           dc_no?: string | null
+          delivered_at?: string | null
           dispatched_at?: string
           dn_no?: string | null
           facility_id: number
+          from_facility_id?: number | null
+          fulfilment_order_id?: number | null
           id?: never
           invoice_no?: string | null
           notes?: string | null
@@ -855,9 +1139,12 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           dc_no?: string | null
+          delivered_at?: string | null
           dispatched_at?: string
           dn_no?: string | null
           facility_id?: number
+          from_facility_id?: number | null
+          fulfilment_order_id?: number | null
           id?: never
           invoice_no?: string | null
           notes?: string | null
@@ -872,6 +1159,20 @@ export type Database = {
             columns: ["facility_id"]
             isOneToOne: false
             referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shipments_from_facility_id_fkey"
+            columns: ["from_facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shipments_fulfilment_order_id_fkey"
+            columns: ["fulfilment_order_id"]
+            isOneToOne: false
+            referencedRelation: "fulfilment_orders"
             referencedColumns: ["id"]
           },
           {
@@ -1192,10 +1493,15 @@ export type Database = {
           created_at: string
           created_by: string | null
           facility_id: number
+          grn_id: number | null
           id: number
           notes: string | null
+          origin: string
+          received_at: string | null
+          received_by: string | null
           return_no: string
-          warehouse_id: number | null
+          status: string
+          to_facility_id: number | null
         }
         Insert: {
           awb_no?: string | null
@@ -1204,10 +1510,15 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           facility_id: number
+          grn_id?: number | null
           id?: never
           notes?: string | null
+          origin?: string
+          received_at?: string | null
+          received_by?: string | null
           return_no: string
-          warehouse_id?: number | null
+          status?: string
+          to_facility_id?: number | null
         }
         Update: {
           awb_no?: string | null
@@ -1216,10 +1527,15 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           facility_id?: number
+          grn_id?: number | null
           id?: never
           notes?: string | null
+          origin?: string
+          received_at?: string | null
+          received_by?: string | null
           return_no?: string
-          warehouse_id?: number | null
+          status?: string
+          to_facility_id?: number | null
         }
         Relationships: [
           {
@@ -1230,8 +1546,15 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "wh_returns_grn_id_fkey"
+            columns: ["grn_id"]
+            isOneToOne: false
+            referencedRelation: "grns"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "wh_returns_warehouse_id_fkey"
-            columns: ["warehouse_id"]
+            columns: ["to_facility_id"]
             isOneToOne: false
             referencedRelation: "facilities"
             referencedColumns: ["id"]
@@ -1240,6 +1563,87 @@ export type Database = {
       }
     }
     Views: {
+      v_fo_lines: {
+        Row: {
+          bucket: Database["public"]["Enums"]["stock_bucket"] | null
+          color: string | null
+          dispatched_qty: number | null
+          facility_id: number | null
+          fo_id: number | null
+          fo_line_id: number | null
+          fo_no: string | null
+          fo_status: Database["public"]["Enums"]["fo_status"] | null
+          fulfiller_id: number | null
+          gst_pct: number | null
+          hsn_code: string | null
+          item_name: string | null
+          line_gst: number | null
+          line_taxable: number | null
+          line_total: number | null
+          margin_pct: number | null
+          msp: number | null
+          pending_qty: number | null
+          po_no: string | null
+          qty: number | null
+          request_id: number | null
+          request_line_id: number | null
+          request_no: string | null
+          size: string | null
+          sku: string | null
+          unit_price: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fulfilment_order_lines_fo_id_fkey"
+            columns: ["fo_id"]
+            isOneToOne: false
+            referencedRelation: "fulfilment_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fulfilment_order_lines_request_line_id_fkey"
+            columns: ["request_line_id"]
+            isOneToOne: false
+            referencedRelation: "order_request_lines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fulfilment_order_lines_request_line_id_fkey"
+            columns: ["request_line_id"]
+            isOneToOne: false
+            referencedRelation: "v_request_lines"
+            referencedColumns: ["request_line_id"]
+          },
+          {
+            foreignKeyName: "fulfilment_order_lines_sku_fkey"
+            columns: ["sku"]
+            isOneToOne: false
+            referencedRelation: "items"
+            referencedColumns: ["sku"]
+          },
+          {
+            foreignKeyName: "fulfilment_orders_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fulfilment_orders_fulfiller_id_fkey"
+            columns: ["fulfiller_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fulfilment_orders_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "order_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       v_request_lines: {
         Row: {
           bucket: Database["public"]["Enums"]["stock_bucket"] | null
@@ -1260,6 +1664,7 @@ export type Database = {
           pending_dispatch_qty: number | null
           po_no: string | null
           received_qty: number | null
+          rejected_qty: number | null
           request_id: number | null
           request_line_id: number | null
           request_no: string | null
@@ -1268,6 +1673,7 @@ export type Database = {
           size: string | null
           sku: string | null
           substituted_qty: number | null
+          suggested_qty: number | null
           unit_price: number | null
         }
         Relationships: [
@@ -1376,9 +1782,47 @@ export type Database = {
       }
     }
     Functions: {
+      _demand_lines: {
+        Args: { p_facility_id: number }
+        Returns: {
+          bucket: Database["public"]["Enums"]["stock_bucket"]
+          category_name: string
+          in_transit: number
+          item_name: string
+          lead_time_days: number
+          max_qty: number
+          min_qty: number
+          on_hand: number
+          pending: number
+          season_factor: number
+          sku: string
+          sold_30d: number
+          suggested_qty: number
+          target: number
+          velocity: number
+        }[]
+      }
+      _generate_demand_drafts: {
+        Args: { p_facility_id: number; p_run_by: string; p_trigger: string }
+        Returns: number
+      }
+      _refresh_fo_status: { Args: { p_fo_id: number }; Returns: undefined }
+      _replace_request_lines: {
+        Args: { p_lines: Json; p_request_id: number }
+        Returns: undefined
+      }
+      _route_request: { Args: { p_request_id: number }; Returns: undefined }
+      _sku_allowed: {
+        Args: { p_facility_id: number; p_sku: string }
+        Returns: boolean
+      }
       add_grn_photo: {
         Args: { p_grn_id: number; p_grn_line_id: number; p_path: string }
         Returns: number
+      }
+      approve_request: {
+        Args: { p_note: string; p_request_id: number }
+        Returns: undefined
       }
       assert_facility_access: {
         Args: { p_facility_id: number }
@@ -1390,22 +1834,23 @@ export type Database = {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
       }
+      available_qty: {
+        Args: { p_fulfiller_id: number; p_sku: string }
+        Returns: number
+      }
       can_access_facility: { Args: { p_facility_id: number }; Returns: boolean }
       create_order_request: {
         Args: {
           p_facility_id: number
           p_lines: Json
           p_notes: string
+          p_submit?: boolean
           p_warehouse_id: number
         }
         Returns: number
       }
       create_sale: {
         Args: { p_facility_id: number; p_header: Json; p_lines: Json }
-        Returns: number
-      }
-      create_shipment: {
-        Args: { p_header: Json; p_lines: Json; p_request_id: number }
         Returns: number
       }
       create_stock_issue: {
@@ -1422,6 +1867,31 @@ export type Database = {
         Args: { p_facility_id: number; p_header: Json; p_lines: Json }
         Returns: number
       }
+      default_warehouse_id: { Args: never; Returns: number }
+      demand_suggestions: {
+        Args: { p_facility_id: number }
+        Returns: {
+          bucket: Database["public"]["Enums"]["stock_bucket"]
+          category_name: string
+          in_transit: number
+          item_name: string
+          lead_time_days: number
+          max_qty: number
+          min_qty: number
+          on_hand: number
+          pending: number
+          season_factor: number
+          sku: string
+          sold_30d: number
+          suggested_qty: number
+          target: number
+          velocity: number
+        }[]
+      }
+      dispatch_fulfilment_order: {
+        Args: { p_fo_id: number; p_header: Json; p_lines: Json }
+        Returns: number
+      }
       finish_item_import: {
         Args: { p_disable_missing: boolean; p_import_id: number }
         Returns: Json
@@ -1431,7 +1901,9 @@ export type Database = {
         Returns: Json
       }
       is_admin: { Args: never; Returns: boolean }
+      is_manager: { Args: never; Returns: boolean }
       is_ops: { Args: never; Returns: boolean }
+      is_super_admin: { Args: never; Returns: boolean }
       move_stock: {
         Args: {
           p_facility_id: number
@@ -1460,10 +1932,33 @@ export type Database = {
           msp: number
         }[]
       }
+      receive_return: { Args: { p_return_id: number }; Returns: undefined }
       refresh_request_status: {
         Args: { p_request_id: number }
         Returns: undefined
       }
+      reject_request: {
+        Args: { p_note: string; p_request_id: number }
+        Returns: undefined
+      }
+      reserved_qty: {
+        Args: { p_fulfiller_id: number; p_sku: string }
+        Returns: number
+      }
+      resolve_quarantine: {
+        Args: {
+          p_action: string
+          p_bucket: Database["public"]["Enums"]["stock_bucket"]
+          p_facility_id: number
+          p_note: string
+          p_qty: number
+          p_sku: string
+          p_to_facility_id: number
+        }
+        Returns: number
+      }
+      run_demand_planning: { Args: { p_facility_id: number }; Returns: number }
+      send_for_approval: { Args: { p_request_id: number }; Returns: undefined }
       set_request_state: {
         Args: {
           p_request_id: number
@@ -1476,10 +1971,26 @@ export type Database = {
         Returns: number
       }
       try_numeric: { Args: { p: string }; Returns: number }
+      update_request_lines: {
+        Args: { p_lines: Json; p_notes: string; p_request_id: number }
+        Returns: undefined
+      }
     }
     Enums: {
-      discrepancy_reason: "ok" | "short" | "excess" | "damaged" | "wrong_sku"
-      facility_type: "warehouse" | "partner_clinic" | "internal"
+      discrepancy_reason:
+        | "ok"
+        | "short"
+        | "excess"
+        | "damaged"
+        | "wrong_sku"
+        | "rejected"
+      facility_type: "warehouse" | "retailer" | "internal" | "super_stockist"
+      fo_status:
+        | "open"
+        | "partially_dispatched"
+        | "dispatched"
+        | "closed"
+        | "cancelled"
       issue_purpose:
         | "training"
         | "demo"
@@ -1494,16 +2005,22 @@ export type Database = {
         | "bucket_transfer"
         | "issue"
         | "return_to_wh"
+        | "dispatch"
+        | "return_in"
       request_status:
-        | "raised"
+        | "draft"
+        | "submitted"
+        | "pending_approval"
+        | "approved"
+        | "rejected"
         | "partially_dispatched"
         | "dispatched"
         | "received"
         | "closed"
         | "cancelled"
       shipment_status: "in_transit" | "received"
-      stock_bucket: "sellable" | "display" | "in_use" | "damaged"
-      user_role: "admin" | "ops" | "facility_staff"
+      stock_bucket: "sellable" | "display" | "in_use" | "damaged" | "quarantine"
+      user_role: "super_admin" | "admin" | "manager" | "ops" | "facility_staff"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1631,8 +2148,22 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      discrepancy_reason: ["ok", "short", "excess", "damaged", "wrong_sku"],
-      facility_type: ["warehouse", "partner_clinic", "internal"],
+      discrepancy_reason: [
+        "ok",
+        "short",
+        "excess",
+        "damaged",
+        "wrong_sku",
+        "rejected",
+      ],
+      facility_type: ["warehouse", "retailer", "internal", "super_stockist"],
+      fo_status: [
+        "open",
+        "partially_dispatched",
+        "dispatched",
+        "closed",
+        "cancelled",
+      ],
       issue_purpose: [
         "training",
         "demo",
@@ -1648,9 +2179,15 @@ export const Constants = {
         "bucket_transfer",
         "issue",
         "return_to_wh",
+        "dispatch",
+        "return_in",
       ],
       request_status: [
-        "raised",
+        "draft",
+        "submitted",
+        "pending_approval",
+        "approved",
+        "rejected",
         "partially_dispatched",
         "dispatched",
         "received",
@@ -1658,8 +2195,8 @@ export const Constants = {
         "cancelled",
       ],
       shipment_status: ["in_transit", "received"],
-      stock_bucket: ["sellable", "display", "in_use", "damaged"],
-      user_role: ["admin", "ops", "facility_staff"],
+      stock_bucket: ["sellable", "display", "in_use", "damaged", "quarantine"],
+      user_role: ["super_admin", "admin", "manager", "ops", "facility_staff"],
     },
   },
 } as const
