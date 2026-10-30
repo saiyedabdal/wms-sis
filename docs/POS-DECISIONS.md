@@ -180,3 +180,5 @@ The returns slice is designed so the credit-note and refund-queue logic is the s
    - Place of supply for B2B buyers from other states.
    - GST rates and HSN for the clinic assortment.
 3. **Service SKUs** (foot scan, fitting): who earns the revenue, and whether they settle through the Hub. Covered in the design.
+
+The prototype (30 Oct 2026) builds on these decisions and leaves the open items open. Where it has to behave one way to work (returns at the counter, settlement at MSP − margin, bank transfer held until the UTR arrives), the assumption is listed in `docs/POS-DESIGN.md` §8, and the Hub changes it needs are in §9.
