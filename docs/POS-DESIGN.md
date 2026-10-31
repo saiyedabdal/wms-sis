@@ -2,8 +2,9 @@
 
 Status: **live prototype**, built from `docs/POS-BRIEF.md` (Rev 2) and `docs/POS-DECISIONS.md` on branch `claude/frido-pos-partner-brief-67w213`.
 - **Database:** both `pos_` migrations were applied to `frido-wms` on 30 Oct 2026 (`20261030194621 pos_core`, `20261030195159 pos_rpc`).
-- **App:** deployed to **https://wms-sis-pos.netlify.app** (Netlify project `wms-sis-pos`, team Founders Office).
-- **Data:** no clinic is on the POS yet. A Frido super admin or ops user does that from Admin → Setup (§12).
+- **App:** part of the **Partner Hub** (`web/`) since 31 Oct 2026 (Decision 12): **Outward → Point of sale → Open till** opens a full-screen till at `/till/`. One app, one login (§1b).
+- **Preview:** the merged Hub + POS build is deployed to **https://wms-sis-pos.netlify.app** (Netlify project `wms-sis-pos`). The Hub's own site (`wms-sis`) gets the till when this branch is merged and deployed there.
+- **Data:** no clinic is on the POS yet. A Frido super admin or ops user does that from Outward → **Set up POS**, or Till → Admin → Setup (screen 12 in §5).
 
 The design checkpoint was skipped at the user's request ("build a proto with what you know; keep open decisions open"). This file describes what was built, the assumptions it makes, and the changes proposed for the Partner Hub.
 
@@ -12,12 +13,13 @@ The design checkpoint was skipped at the user's request ("build a proto with wha
 ```
  Tablet / laptop / phone (Decision 5: mixed)          Supabase project frido-wms (shared with the Partner Hub)
  ┌──────────────────────────────┐   supabase-js    ┌──────────────────────────────────────────────────────────┐
- │ pos/  Next.js static export  │ ───────────────▶ │ pos_* tables (RLS)   pos_* functions (SECURITY DEFINER)   │
- │  login · PIN switch · till   │   (anon key +    │        │                         │                         │
- │  sell · invoices · returns   │    user JWT)     │        ▼                         ▼                         │
- │  cash · reports · admin      │                  │ Hub: items, facilities, facility_assortment,             │
- │  /doc  public invoice link   │                  │      stock_balances / stock_ledger, create_sale()        │
- └──────────────────────────────┘                  │ Edge Functions: pos-razorpay-qr, pos-razorpay-webhook    │
+ │ web/  Partner Hub (static)   │ ───────────────▶ │ pos_* tables (RLS)   pos_* functions (SECURITY DEFINER)   │
+ │  Hub login (one session)     │   (anon key +    │        │                         │                         │
+ │  Outward → Point of sale     │    user JWT)     │        ▼                         ▼                         │
+ │  /till/  PIN · sell · bills  │                  │ Hub: items, facilities, facility_assortment,             │
+ │   returns · cash · reports   │                  │      stock_balances / stock_ledger, create_sale()        │
+ │  /doc/  public invoice link  │                  │ Edge Functions: pos-razorpay-qr, pos-razorpay-webhook    │
+ └──────────────────────────────┘                  │                                                          │
                                                    └──────────────────────────────────────────────────────────┘
 ```
 
@@ -27,6 +29,35 @@ The design checkpoint was skipped at the user's request ("build a proto with wha
   - **Stock and settlement:** `stock_balances` / `stock_ledger` and `create_sale()`.
   - **Roles and access:** `profiles`, `can_access_facility()`, `is_ops()`.
 - Secrets (Razorpay keys, webhook secrets, the service-role key) live only in Edge Function secrets.
+
+## 1b. Where the POS sits in the Hub: Outward + till mode
+
+Decision 12 (31 Oct 2026): the POS is part of the Outward module, not a separate app.
+
+- **One login:**
+  - The till uses the Hub's Supabase browser client, so the Hub and the till share one session.
+  - A signed-out visit to `/till/` goes to the Hub login with `?next=/till/` and comes back after sign-in.
+  - Only same-site paths are honoured in `next`.
+- **Outward (`/sales/`):**
+  - **On the POS:** the Point of sale card shows today's paid sales, returns (credit notes), open shifts out of active tills, and bills needing attention, with links into till mode. **Open till** replaces Record sale, so a clinic doesn't enter the same sale twice.
+  - **Not on the POS:** Frido ops see **Set up POS**, which opens till Admin → Setup with that facility already chosen. Everyone else sees the usual Record sale.
+  - POS bills post to the Hub's sales list through `create_sale`, with the invoice number as `bill_ref`.
+- **Till mode (`/till/…`):**
+  - Lives outside the Hub's `(app)` shell: full screen, black POS header, staff PIN layer, phone bottom bar.
+  - Links from Outward carry `?facility=<id>`, which becomes the device's till facility.
+  - **Hub** in the header, or **Back to Partner Hub** on the first PIN screen, returns to Outward.
+  - Sign-out in the till signs the device out of the Hub too, since it is the same session.
+- **Routes:**
+  - `/till/` Sell
+  - `/till/invoices/`, `/till/returns/?invoice=`
+  - `/till/cash/`, `/till/reports/`, `/till/admin/`
+  - `/doc/?t=` stays public.
+- **Hub code touched (UI only, no database change):**
+  - `web/src/app/(app)/sales/page.tsx`: the POS card and the Open till / Record sale switch.
+  - `web/src/app/login/page.tsx`: honours `?next=`.
+  - `web/src/app/globals.css`: the POS print sizes, sheet shadow, `no-scrollbar` and `touch-action`.
+  - `web/package.json`: adds `qrcode`.
+  - The Hub's sidebar (`AppShell`) is unchanged; Outward stays step 3.
 
 ## 2. Schema (`supabase/migrations/20261031100000_pos_core.sql`)
 
@@ -160,19 +191,20 @@ Tablet landscape first (1280×800), with desktop and phone layouts. Frido Design
 
 | # | Screen | Layout and key actions | Empty, error and edge states |
 |---|---|---|---|
-| 1 | **Login** (`/login`) | Black brand panel + email/password form | Wrong credentials message. OTP login is not built; it uses Hub accounts like the Hub does |
-| 1b | **PIN switch** (modal) | Staff tiles (clinic managers and cashiers first, then Frido admins, who can also open the till and sell) + 3×4 keypad + dots; physical keyboard works; "Tap your name above" until a person is picked | Wrong PIN shows tries left; 5 wrong locks for 5 minutes; "no PIN set" shown on the tile |
+| 0 | **Outward → Point of sale** (`/sales/`) | Hub page: Open till (header), today's sales / returns / shifts open / needs attention, links into till mode, the sales list below with POS bills by invoice number | Not on the POS: ops see Set up POS; others see the usual Record sale |
+| 1 | **Login** (the Hub's `/login/?next=/till/`) | The Partner Hub sign-in; returns to the till afterwards | Wrong credentials message. OTP login is not built; it uses Hub accounts like the Hub does |
+| 1b | **PIN switch** (modal) | Staff tiles (clinic managers and cashiers first, then Frido admins, who can also open the till and sell) + 3×4 keypad + dots; physical keyboard works; "Tap your name above" until a person is picked; "Back to Partner Hub" link | Wrong PIN shows tries left; 5 wrong locks for 5 minutes; "no PIN set" shown on the tile |
 | – | Facility / till pickers | Shown only when the device user can see several clinics, or the clinic has several tills; the device remembers its till | "Clinic not on the POS yet" with a link to Setup for Frido ops |
 | 2 | **Open shift** | Opening float input + quick amounts | Shown whenever the till has no open shift |
-| 3 | **Sell** (`/`) | Left: scan/search field (keyboard-wedge focus trap; camera button with ZXing), category chips, product grid (photo, size/colour, MSP, stock badge). Right: cart (customer chip, referred-by select, lines with qty stepper, line discount link, MRP shown only if real), bill discount, totals, yellow **Charge ₹X** | Empty cart prompt; unknown barcode toast; out-of-stock and not-sale-ready (no MSP/HSN/GST) blocked with a reason; offline banner with Charge disabled while the cart is kept |
+| 3 | **Sell** (`/till/`) | Left: scan/search field (keyboard-wedge focus trap; camera button with ZXing), category chips, product grid (photo, size/colour, MSP, stock badge). Right: cart (customer chip, referred-by select, lines with qty stepper, line discount link, MRP shown only if real), bill discount, totals, yellow **Charge ₹X** | Empty cart prompt; unknown barcode toast; out-of-stock and not-sale-ready (no MSP/HSN/GST) blocked with a reason; offline banner with Charge disabled while the cart is kept |
 | 4 | **Customer sheet** | Phone lookup as you type (returning: visit count and last visit), name, optional email, Individual/Business toggle (GSTIN + company), lead-source chips, **unticked** consent | Invalid phone or GSTIN messages |
 | – | **Discount sheet** | % / ₹ toggle, quick chips, live "within your limit" / "manager approves" / "admin only" hint | |
 | 9 | **Manager approval** (PIN pad) | Reason chips + text, approver tiles (managers, or admins only above 10%) | Wrong PIN; a manager trying above 10% is refused |
 | 5 | **Payment sheet** | Mode tiles (enabled modes only); amount; cash tendered + change; static UPI shows an amount-locked QR and needs the UTR; card needs the RRN; split payments list; Left to pay | Total mismatch; missing UTR/RRN; connection loss tells the cashier the retry is safe |
 | 6 | **Sale complete** | Invoice number, total, modes, change due, Print 80 mm / A4, WhatsApp, SMS, copy link, New sale | Unpaid (bank / Razorpay): held stock, UTR entry or Razorpay QR with polling; Needs attention message |
-| – | **Public document** (`/doc?t=`) | Invoice or credit note, 80 mm / A4 toggle, Print/PDF, WhatsApp | Invalid link message |
+| – | **Public document** (`/doc/?t=`) | Invoice or credit note, 80 mm / A4 toggle, Print/PDF, WhatsApp | Invalid link message |
 | 7 | **Invoices** | Today / 7 / 30 days, search (number, name, phone), status chips with an unpaid count, table; detail modal with lines, payments, credit notes, share, Return/exchange, confirm UTR, Cancel draft | Empty state per range; late-invoice hint |
-| 8 | **Return / exchange** (`/returns?invoice=`) | Per-line qty stepper + Resell/Damaged, reason chips, Exchange / Refund online (UPI ID, bank account, Razorpay), credit value bar, manager PIN, admin PIN if late; success shows the credit note and "Ring up the replacement" (carries the customer, referral and credit into the cart) | Banner: returns location is still an open decision |
+| 8 | **Return / exchange** (`/till/returns/?invoice=`) | Per-line qty stepper + Resell/Damaged, reason chips, Exchange / Refund online (UPI ID, bank account, Razorpay), credit value bar, manager PIN, admin PIN if late; success shows the credit note and "Ring up the replacement" (carries the customer, referral and credit into the cart) | Banner: returns location is still an open decision |
 | 10 | **Cash & day end** | Live X-report (takings by mode, drawer maths, by staff), petty cash (categories), bank deposit, cash in, Close day with a denomination counter, Z-report, closed-shift history | Till closed; variance needs a note; cash-out above the drawer refused |
 | 11 | **Reports** | Presets + dates; KPI tiles (net sales, orders + average bill, units sold/returned, new vs returning); net-sales-by-day bars (one hue, hover tooltip, table equivalent); top products, category, staff, therapist, payment reconciliation, daily figures; **Export to Excel** (8 sheets) | "Nothing in this period" rows |
 | 12 | **Admin** | Needs attention · Refunds (mark paid with UTR) · Therapists & doctors · Staff & PINs (+ change my PIN; Frido ops: **Add a person** from Partner Hub logins) · Data health (SKUs that can't be invoiced) · Setup (Frido ops: **Put a clinic on the POS**: facility, invoicing entity (pick or create), series codes, payment modes, first till; then series, modes, limits, return window, footer, add till) | Role-scoped tabs; with no clinic on the POS, only Setup shows |
@@ -180,13 +212,14 @@ Tablet landscape first (1280×800), with desktop and phone layouts. Frido Design
 ## 6. Folder structure
 
 ```
-pos/                                   Next.js 15 static export (Netlify), Supabase JS from the browser
-  src/app/login/                       sign-in
-  src/app/(till)/                      PIN-gated till: page.tsx (Sell), invoices/, returns/, cash/, reports/, admin/
+web/                                   the Partner Hub: Next.js 15 static export (Netlify), Supabase JS from the browser
+  src/app/(app)/sales/page.tsx         Outward: Point of sale card, Open till / Record sale
+  src/app/login/                       the Hub sign-in (honours ?next=)
+  src/app/till/                        till mode: layout.tsx (viewport + TillRoot), page.tsx (Sell), invoices/, returns/, cash/, reports/, admin/
   src/app/doc/                         public invoice / credit note (share link; print 80 mm / A4)
-  src/components/                      ui kit, Shell (top bar, gating), PinPad, ScanField, DocView, sell/*
-  src/lib/                             supabase client + rpc(), pos.tsx (till state + connectivity log), cart, format, types
-  netlify.toml                         second Netlify site with base directory "pos"
+  src/components/pos/                  POS ui kit, TillRoot, Shell (top bar, gating, Hub exit), PinPad, ScanField, DocView, OutwardTill, sell/*
+  src/lib/pos/                         rpc() on the Hub client, context.tsx (till state + connectivity log), cart, format, types
+netlify.toml                           the Hub's Netlify config (base directory "web")
 supabase/migrations/20261031100000_pos_core.sql   tables, indexes, RLS
 supabase/migrations/20261031100100_pos_rpc.sql    functions, grants, catalogue view, report
 supabase/functions/pos-razorpay-qr/               creates an amount-locked UPI QR (keys per entity in secrets)
@@ -264,6 +297,14 @@ Edge Function secrets:
   5. Reports, admin, offline banner, phone layout.
   6. Petty cash with manager PIN → close day balanced → Z-report.
 - **Result:** zero browser errors.
+- **Re-run after the merge into the Hub (31 Oct):**
+  - The SQL suite passes again (97 checks).
+  - The walkthrough now starts at the Hub login → Outward → **Open till**, with no browser errors.
+  - Also checked:
+    - a signed-out `/till/` → login → back to the till;
+    - Hub → till → Hub;
+    - the Outward card on desktop and phone (`docs/pos-prototype/00-*.png`);
+    - an ops user on a facility not yet on the POS → Set up POS → the setup form with that facility chosen.
 - **Demo backend:** a ~200-line Node gateway (kept outside the repo) speaks the Supabase auth/REST protocol on top of local Postgres and runs every request as the caller's role and JWT claims. RLS and the functions behave as on Supabase. Supabase branching (Pro plan only) and the PostgREST binary download were both unavailable.
 
 ## 8. Assumptions the prototype makes (open, not decided)
@@ -276,6 +317,8 @@ Edge Function secrets:
 6. **Service SKUs** are taxed and invoiced but not posted to the Hub, so there's no settlement on them. Who earns them is open.
 7. **GST rates accepted:** 0/5/12/18/28/40. Anything else (e.g. the 15% in the item master) blocks the line.
 8. **Invoice PDF** is the browser's Print → PDF of the tokenised `/doc` page, not a stored PDF in Storage. Same result for the patient, with no Storage or secrets involved. A stored PDF can be added if Finance needs an archived copy.
+9. **A facility on the POS sells only through the till.** Outward hides the manual Record sale button for it, so the same sale isn't entered twice. The `/sales/new` form itself still exists; H4 would enforce this in the database.
+10. **The till device is signed in with a Hub login** (normally the clinic's), and staff switch with PINs on top. Leaving till mode shows the Hub as that login sees it, so a cashier with only a PIN can see what the device's login can. If that's too much, give tills a login that can see nothing else in the Hub.
 
 ## 9. Proposed Partner Hub changes (not applied; need your OK)
 
@@ -286,7 +329,7 @@ Edge Function secrets:
   - **The gap:** the Hub has no way to reverse a sale. Today the POS puts stock back with `return_in` ledger rows, but `sale_lines` still count the units as sold, so consignment settlement and demand-planning velocity overstate sales.
   - **Proposal:** `sale_returns` / `sale_return_lines` + `create_sale_return(p_sale_id, p_lines, p_ref)` (restock + negative settlement), with `v_sales_lines` and `_demand_lines` net of returns.
 - **H3 Settlement on price charged:** only if Finance chooses it (assumption 2). Needs `price_charged` from H1 in the settlement maths.
-- **H4 One outward channel per facility:** add `facilities.outward_channel` (planned in the Hub v2 spec). The Hub's manual Sales screen refuses POS facilities, which avoids double counting.
+- **H4 One outward channel per facility:** add `facilities.outward_channel` (planned in the Hub v2 spec). The Hub's manual Sales screen refuses POS facilities, which avoids double counting. The UI half is done (Outward shows Open till instead of Record sale for a POS facility); `create_sale` doesn't refuse yet.
 - **H5 POS holds in Hub availability:** unpaid POS drafts hold stock only against other POS checkouts. A Hub-side sale or transfer can take those units, and the POS then flags Needs attention. Options: Hub `available_qty` subtracts POS holds, or a shared reservations table.
 - **H6 Data for go-live:**
   - **Item master:** the HSN and GST-rate cleanup Finance must confirm.
@@ -299,7 +342,7 @@ Edge Function secrets:
 | Milestone | What | Needs |
 |---|---|---|
 | M0 Prototype | **Done on this branch** (all slices above) | – |
-| M1 Pilot at Neuromatics | ~~Apply both `pos_` migrations to `frido-wms` + run advisors~~ (done 30 Oct); ~~second Netlify site from `pos/`~~ (done: wms-sis-pos.netlify.app); put Neuromatics on the POS (Admin → Setup) once its invoicing entity is known; create real clinic logins in the Hub and their PINs; fix assortment MSP/HSN/GST; printer setup per till (RawBT on Android, USB on PC); staff training | Finance answers (entity, GSTIN, rates); returns decision |
+| M1 Pilot at Neuromatics | ~~Apply both `pos_` migrations to `frido-wms` + run advisors~~ (done 30 Oct); ~~merge into the Hub under Outward~~ (done 31 Oct; preview on wms-sis-pos.netlify.app, live with the Hub when this branch is merged); put Neuromatics on the POS (Admin → Setup) once its invoicing entity is known; create real clinic logins in the Hub and their PINs; fix assortment MSP/HSN/GST; printer setup per till (RawBT on Android, USB on PC); staff training | Finance answers (entity, GSTIN, rates); returns decision |
 | M2 Money paths | Razorpay keys + webhook live for Frido-invoiced facilities; petty-cash receipt photos (Storage bucket `pos-receipts`); H1 + H2 in the Hub | Razorpay account per entity; H1/H2 approval |
 | M3 Polish | Needs-attention alerts (email/WhatsApp to the manager); connectivity report; customer purchase history in the sheet; per-clinic printer test page | – |
 
@@ -308,5 +351,9 @@ Edge Function secrets:
 ## 11. Running it
 
 - **Tests:** `PGHOST=<socket dir> PGPORT=<port> supabase/tests/pos/run.sh` against any local Postgres 16 superuser.
-- **App:** `cd pos && npm install && npm run dev`. Put `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` in `pos/.env.local` (see `.env.example`). It needs the `pos_` migrations applied to that project.
-- **Deploy:** the Netlify project `wms-sis-pos` isn't connected to Git yet; each deploy is a manual upload of `pos/`, which Netlify builds with `pos/netlify.toml`. To deploy on every push, connect the repo in Netlify with base directory `pos` and the production branch you choose.
+- **App:** `cd web && npm install && npm run dev`, sign in, then Outward → Open till (or go to `/till/`). `web/.env.local` holds `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` (see `web/.env.example`). The project needs the `pos_` migrations.
+- **Deploy:**
+  - **Hub site (`wms-sis`):** the till ships with the Hub; nothing extra once this branch is merged.
+  - **Preview (`wms-sis-pos`):** a manual upload, not connected to Git.
+    - Upload only the committed tree: `git archive HEAD web netlify.toml` into an empty folder, then run the Netlify deploy command from there.
+    - Uploading the working copy fails: the uploader skips only the top-level `node_modules`, so `web/node_modules`, `.next` and `out` go up too (the first upload on 31 Oct failed this way).

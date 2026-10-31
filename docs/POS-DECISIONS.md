@@ -18,6 +18,7 @@ The design (`docs/POS-DESIGN.md`) follows from this file. If a decision changes,
 | 9 | Attribution | **Employee (mandatory) + referring therapist/doctor + optional lead source** |
 | 10 | Returns | **10-day window**, **refund online** paid by the invoicing entity via a refund queue, late returns **Frido admin only**, exchange for **any product**. _Open: where the return is recorded (see 10)_ |
 | 11 | Invoice series | **`SERIES/FY/n`**, e.g. `NMB1/2627/000123` (16 chars); credit notes get their own series code |
+| 12 | Where the POS lives | **Inside the Partner Hub, under Outward, with a full-screen till mode.** One app, one login (31 Oct 2026) |
 
 ---
 
@@ -159,6 +160,16 @@ The returns slice is designed so the credit-note and refund-queue logic is the s
 - The counter restarts at 1 each April.
 - A finalised invoice is never deleted or renumbered. It is reversed with a credit note.
 - A DevX-style long reference (e.g. `INV_2627_NEU-BNR_123`) can be shown as a secondary reference if needed, but it is not the GST number.
+
+## 12. Where the POS lives: under Outward, with till mode
+
+Asked on 31 Oct 2026, after the manager's module structure put selling under Outward. Answer: **"Yes, merge it under Outward with till mode."**
+
+- **One app, one login:** the POS is part of the Partner Hub (`web/`), not a second site. Staff sign in once with their Hub account.
+- **Outward → Point of sale:** the Outward page (`/sales/`) shows the facility's POS figures for today and an **Open till** button.
+- **Till mode:** `/till/…` runs full screen, outside the Hub's sidebar, with the staff PIN layer on top. The **Hub** button (or "Back to Partner Hub" on the PIN screen) returns to Outward.
+- **No double entry:** for a facility on the POS, Outward shows Open till instead of the manual Record sale form.
+- The rejected alternative was two top-level modes (WMS and POS) side by side.
 
 ---
 
