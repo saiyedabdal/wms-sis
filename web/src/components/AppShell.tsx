@@ -25,8 +25,10 @@ import {
   RiUserAddLine,
   RiTruckLine,
 } from "@remixicon/react";
+import { loginPath } from "@/lib/paths";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import type { Facility, Profile, Role } from "@/lib/types";
+import { Brand } from "./Brand";
 import { cx } from "./ui";
 
 /** Who is looking: Frido (admin / manager / ops), a retailer's staff, or a super stockist's staff. */
@@ -223,9 +225,14 @@ export function AppShell({
       setBadges(next);
     })();
   }, [pathname, isOps, isManager, isAdmin, audience, facility]);
+  // back to the login page this person uses (the app layout reads it when the session ends)
   const signOut = async () => {
+    const own = facilities.find((f) => f.id === profile.facility_id);
+    const portal = profile.role !== "facility_staff" ? "admin" : own?.type === "super_stockist" ? "super_stockist" : "retailer";
+    try {
+      sessionStorage.setItem("wms.loginPath", loginPath(portal));
+    } catch {}
     await supabaseBrowser().auth.signOut();
-    router.replace("/login/");
   };
 
   // the most specific nav href that matches the current path wins
@@ -242,9 +249,8 @@ export function AppShell({
           )}
         >
           <div className="flex items-center justify-between px-5 py-5">
-            <Link href="/" className="flex items-baseline gap-2">
-              <span className="text-2xl font-bold lowercase tracking-tight">frido</span>
-              <span className="rounded-xs bg-yellow px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ink">Partner Hub</span>
+            <Link href="/">
+              <Brand />
             </Link>
             <button className="md:hidden" onClick={() => setOpen(false)} aria-label="Close menu">
               <RiCloseLine />

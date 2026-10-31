@@ -7,7 +7,7 @@ import { Alert, Badge, Button, Card, CopyBlock, Empty, Field, Input, PageHeader,
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { adminUsers } from "@/lib/adminUsers";
 import { dateTime, errMsg } from "@/lib/format";
-import { paths } from "@/lib/paths";
+import { loginPath, paths } from "@/lib/paths";
 import type { Database } from "@/lib/database.types";
 
 type App = Database["public"]["Tables"]["vendor_applications"]["Row"];
@@ -52,7 +52,7 @@ export default function OnboardingPage() {
     <>
       <PageHeader
         title="Onboarding"
-        subtitle="Retailers and super stockists who applied from the login page. Approving creates their facility and a login with a temporary password, sent to their email."
+        subtitle="Retailers and super stockists who asked for Frido CDN access from their login page. Approving creates their facility and a login with a temporary password, sent to their email."
       />
       {result && (
         <div className="mb-6 flex flex-col gap-3">
@@ -85,7 +85,7 @@ export default function OnboardingPage() {
       {shown.length === 0 ? (
         <Card>
           <Empty title={tab === "pending" ? "No applications waiting" : `Nothing ${tab} yet`}>
-            Retailers and super stockists apply from the Retailer / Super stockist tabs on the login page.
+            Retailers apply at /login/retailer and super stockists at /login/ss.
           </Empty>
         </Card>
       ) : (
@@ -255,7 +255,7 @@ function ApprovePanel({ a, onCancel, onDone }: { a: App; onCancel: () => void; o
         margin_pct: Number(form.margin_pct) || 0,
         is_consignment: form.is_consignment,
         note: form.note || null,
-        login_url: `${window.location.origin}/login/`,
+        login_url: window.location.origin + loginPath(a.applying_as === "super_stockist" ? "super_stockist" : "retailer"),
       });
       onDone(r);
     } catch (x) {

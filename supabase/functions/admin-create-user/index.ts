@@ -1,6 +1,7 @@
-// Admin user management for the Partner Hub. Only callable by an active admin; the service-role key never
-// leaves Supabase. Supabase's built-in mailer only reaches org members, so logins come with a one-time
-// set-password link (or temporary password) for the admin to share; approvals are also emailed when set up.
+// Admin user management for Frido CDN (Frido Care Distribution Network). Only callable by an active admin;
+// the service-role key never leaves Supabase. Supabase's built-in mailer only reaches org members, so logins
+// come with a one-time set-password link (or temporary password) for the admin to share; approvals are also
+// emailed when set up.
 //   { action: "create", email, full_name, role, facility_id, redirect_to }  -> new login + link
 //   { action: "link", user_id, redirect_to }                                -> fresh link for an existing login
 //   { action: "approve_application", application_id, code, name, fulfiller_ss_id, margin_pct, is_consignment,
@@ -32,7 +33,7 @@ async function sendMail(to: string, subject: string, text: string) {
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ from: Deno.env.get("MAIL_FROM") ?? "Frido Partner Hub <onboarding@resend.dev>", to: [to], subject, text }),
+    body: JSON.stringify({ from: Deno.env.get("MAIL_FROM") ?? "Frido CDN <onboarding@resend.dev>", to: [to], subject, text }),
   });
   if (res.ok) return { sent: true };
   return { sent: false, reason: `The email could not be sent (${res.status}: ${(await res.text()).slice(0, 200)}). Share the message below yourself.` };
@@ -165,10 +166,10 @@ Deno.serve(async (req) => {
         .eq("id", created.user.id);
 
       const kind = app.applying_as === "super_stockist" ? "super stockist" : "retailer";
-      const subject = "Your Frido Partner Hub request has been approved";
+      const subject = "Your Frido CDN access has been approved";
       const message = `Hi ${app.poc_name},
 
-Your request to join Frido Partner Hub as a ${kind} (${body.name || app.business_name}) has been approved.
+Your request for Frido CDN (Frido Care Distribution Network) access as a ${kind} (${body.name || app.business_name}) has been approved.
 
 Sign in for the first time here: ${body.login_url ?? ""}
 Email: ${email}

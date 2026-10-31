@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Alert, Button, Field, Input } from "@/components/ui";
 import { supabaseBrowser } from "@/lib/supabase/client";
+import { Brand } from "@/components/Brand";
 
 /** Landing page for the one-time sign-in links admins share, and for the first sign-in with a temporary password:
  *  the person chooses their own password here. */
@@ -58,8 +59,7 @@ export default function ResetPasswordPage() {
   return (
     <div className="flex min-h-screen items-center justify-center p-6">
       <div className="w-full max-w-sm">
-        <span className="mb-2 block text-3xl font-bold lowercase tracking-tight">frido</span>
-        <span className="rounded-xs bg-yellow px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide">Partner Hub</span>
+        <Brand size="lg" />
         <h1 className="mt-8 text-[28px] font-semibold tracking-tight">{first ? "Welcome! Choose your password" : "Set your password"}</h1>
         {first && <p className="mt-2 text-sm text-n800">You signed in with a temporary password. Pick your own to continue.</p>}
         {ready === "wait" && <p className="mt-2 text-sm text-n800">Checking your link…</p>}

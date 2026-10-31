@@ -38,7 +38,8 @@ const EMPTY = {
   notes: "",
 };
 
-/** Public application to join Partner Hub (login page → Retailer / Super stockist). An admin approves it on Onboarding. */
+/** Request for Frido CDN portal access from an existing Frido retailer / super stockist (/login/retailer/, /login/ss/).
+ *  An admin approves it on Onboarding. */
 export function OnboardingForm({ applyingAs, onSignIn }: { applyingAs: ApplyingAs; onSignIn: () => void }) {
   const [f, setF] = useState(EMPTY);
   const [categories, setCategories] = useState<string[]>([]);
@@ -80,7 +81,7 @@ export function OnboardingForm({ applyingAs, onSignIn }: { applyingAs: ApplyingA
         <RiCheckboxCircleFill size={40} className="text-green-a" />
         <h1 className="text-[28px] font-semibold tracking-tight">Thanks, {f.poc_name.split(" ")[0] || "we've got it"}</h1>
         <p className="text-sm text-n900">
-          Your request to join as a {kind} is with the Frido team{done ? ` (application #${done})` : ""}. Once it&apos;s approved you&apos;ll get an email at{" "}
+          Your Frido CDN access request as a {kind} is with the Frido team{done ? ` (application #${done})` : ""}. Once it&apos;s approved you&apos;ll get an email at{" "}
           <span className="font-semibold">{f.poc_email}</span> with your temporary password to sign in.
         </p>
         <Button variant="secondary" onClick={onSignIn}>
@@ -93,9 +94,10 @@ export function OnboardingForm({ applyingAs, onSignIn }: { applyingAs: ApplyingA
   return (
     <form onSubmit={submit} className="flex flex-col gap-8">
       <div>
-        <h1 className="text-[28px] font-semibold tracking-tight">Become a Frido {kind}</h1>
+        <h1 className="text-[28px] font-semibold tracking-tight">{applyingAs === "retailer" ? "Retailer" : "Super stockist"} onboarding</h1>
         <p className="mt-1 text-sm text-n800">
-          Tell us about your business. The Frido team reviews every request; once approved you get an email with your login.
+          Get your login to Frido CDN, the Frido Care Distribution Network portal for stock, orders and deliveries. Fill in your details; once the Frido
+          team approves them, you get an email with your login.
         </p>
       </div>
 
@@ -131,7 +133,7 @@ export function OnboardingForm({ applyingAs, onSignIn }: { applyingAs: ApplyingA
         </Field>
       </Section>
 
-      <Section n={2} title="Point of contact" hint="This email becomes your Partner Hub login.">
+      <Section n={2} title="Point of contact" hint="This email becomes your Frido CDN login.">
         <Field label="Name *">
           <Input value={f.poc_name} onChange={set("poc_name")} required maxLength={120} />
         </Field>
@@ -208,7 +210,7 @@ export function OnboardingForm({ applyingAs, onSignIn }: { applyingAs: ApplyingA
         {maintains === false && (
           <div className="sm:col-span-2">
             <p className="mb-1 text-sm font-medium">Should Frido maintain the stock for you, automatically? *</p>
-            <p className="mb-2 text-xs text-n800">Frido keeps track of what is sent to you, sold and on hand in Partner Hub, so you don&apos;t have to.</p>
+            <p className="mb-2 text-xs text-n800">Frido keeps track of what is sent to you, sold and on hand in Frido CDN, so you don&apos;t have to.</p>
             <YesNo value={fridoManage} onChange={setFridoManage} />
           </div>
         )}
@@ -230,7 +232,7 @@ export function OnboardingForm({ applyingAs, onSignIn }: { applyingAs: ApplyingA
           {busy ? "Sending…" : "Send for approval"}
         </Button>
         <button type="button" onClick={onSignIn} className="text-sm text-blue hover:underline">
-          Already approved? Sign in
+          Already have a login? Sign in
         </button>
       </div>
     </form>

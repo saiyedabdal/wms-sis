@@ -34,7 +34,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       setState({ kind: "ready", profile: profile as Profile, facilities: (facilities ?? []) as Facility[] });
     })();
     const { data: sub } = sb.auth.onAuthStateChange((event) => {
-      if (event === "SIGNED_OUT") router.replace("/login/");
+      if (event !== "SIGNED_OUT") return;
+      let to = "/login/";
+      try {
+        to = sessionStorage.getItem("wms.loginPath") ?? to;
+        sessionStorage.removeItem("wms.loginPath");
+      } catch {}
+      router.replace(to);
     });
     return () => sub.subscription.unsubscribe();
   }, [router]);
@@ -50,7 +56,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     return (
       <div className="mx-auto mt-24 max-w-md rounded-lg border border-n300 bg-white p-8 text-center">
         <p className="text-lg font-semibold">Account not active</p>
-        <p className="mt-2 text-sm text-n800">Ask a Frido WMS admin to activate your login.</p>
+        <p className="mt-2 text-sm text-n800">Ask a Frido CDN admin to activate your login.</p>
         <button className="mt-6 text-sm text-blue hover:underline" onClick={() => supabaseBrowser().auth.signOut()}>
           Sign out
         </button>
