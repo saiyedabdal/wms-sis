@@ -1,25 +1,36 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { RiCheckLine, RiFileCopyLine, RiLinkM } from "@remixicon/react";
 import { useApp } from "@/components/AppShell";
 import { Alert, Badge, Button, Card, Field, Input, PageHeader, Select, Table, Td, Th } from "@/components/ui";
 import { supabaseBrowser } from "@/lib/supabase/client";
-import type { Profile, Role } from "@/lib/types";
+import { facilityTypeLabel, type Profile, type Role } from "@/lib/types";
 import { errMsg } from "@/lib/format";
+import { adminUsers } from "@/lib/adminUsers";
 
 const ROLES: { value: Role; label: string }[] = [
-  { value: "facility_staff", label: "Facility staff" },
-  { value: "ops", label: "Ops (all facilities)" },
+  { value: "facility_staff", label: "Facility staff (retailer / SS)" },
+  { value: "ops", label: "Frido ops" },
+  { value: "field_sales", label: "Field sales team" },
+  { value: "manager", label: "Manager (approves requests)" },
   { value: "admin", label: "Admin" },
+  { value: "super_admin", label: "Super admin (can switch views)" },
 ];
+// new logins get any role but super admin; a super admin promotes someone from the table instead
+const NEW_LOGIN_ROLES = ROLES.filter((r) => r.value !== "super_admin");
+
 
 export default function UsersPage() {
   const { facilities, profile: me } = useApp();
+  const meSuper = me.role === "super_admin";
   const stockFacilities = facilities.filter((f) => f.type !== "warehouse");
   const [users, setUsers] = useState<Profile[]>([]);
-  const [form, setForm] = useState({ full_name: "", email: "", password: "", role: "facility_staff" as Role, facility_id: String(stockFacilities[0]?.id ?? "") });
+  const [form, setForm] = useState({ full_name: "", email: "", role: "facility_staff" as Role, facility_id: String(stockFacilities[0]?.id ?? "") });
   const [msg, setMsg] = useState<{ tone: "red" | "green"; text: string } | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [link, setLink] = useState<{ who: string; url: string } | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const { data } = await supabaseBrowser().from("profiles").select("*").order("created_at");
@@ -38,23 +49,65 @@ export default function UsersPage() {
 
   const create = async (e: React.FormEvent) => {
     e.preventDefault();
-    setBusy(true);
+    setBusy("create");
     setMsg(null);
-    const { data, error } = await supabaseBrowser().functions.invoke("admin-create-user", {
-      body: { ...form, facility_id: form.role === "facility_staff" ? Number(form.facility_id) || null : null },
-    });
-    setBusy(false);
-    // non-2xx responses carry the reason in the JSON body
-    const reason = error ? ((await (error as { context?: Response }).context?.json?.().catch(() => null))?.error ?? errMsg(error)) : data?.error;
-    if (reason) return setMsg({ tone: "red", text: reason });
-    setMsg({ tone: "green", text: `Login created for ${form.email}. Share the password with them.` });
-    setForm({ ...form, full_name: "", email: "", password: "" });
-    load();
+    setLink(null);
+    try {
+      const res = await adminUsers<{ link: string; id?: string }>({
+        action: "create",
+        ...form,
+        facility_id: form.role === "facility_staff" ? Number(form.facility_id) || null : null,
+      });
+      setLink({ who: form.email, url: res.link });
+      setForm({ ...form, full_name: "", email: "" });
+      load();
+    } catch (err) {
+      setMsg({ tone: "red", text: errMsg(err) });
+    }
+    setBusy(null);
+  };
+
+  const getLink = async (u: Profile) => {
+    setBusy(u.id);
+    setMsg(null);
+    try {
+      const res = await adminUsers<{ link: string; id?: string }>({ action: "link", user_id: u.id });
+      setLink({ who: u.email ?? u.full_name ?? "", url: res.link });
+    } catch (err) {
+      setMsg({ tone: "red", text: errMsg(err) });
+    }
+    setBusy(null);
+  };
+
+  const copy = async () => {
+    if (!link) return;
+    await navigator.clipboard.writeText(link.url);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
   };
 
   return (
     <>
-      <PageHeader title="Users" subtitle="Ops see every facility. Facility staff only see and post for their own facility." />
+      <PageHeader
+        title="Users"
+        subtitle="Frido roles see every facility; the manager approves requests. Facility staff only see and post for their own retailer or super stockist."
+      />
+      {link && (
+        <div className="mb-6 rounded-lg border border-y75 bg-y50 p-5">
+          <p className="text-sm font-semibold">Sign-in link for {link.who}</p>
+          <p className="mt-1 text-sm text-n900">
+            Send this on WhatsApp or Slack. It opens a page where they set their own password. It works once and expires in 24 hours; get a new
+            one from the list below any time.
+          </p>
+          <div className="mt-3 flex gap-2">
+            <Input readOnly value={link.url} className="font-mono text-xs" onFocus={(e) => e.target.select()} />
+            <Button variant="secondary" onClick={copy}>
+              {copied ? <RiCheckLine size={16} /> : <RiFileCopyLine size={16} />}
+              {copied ? "Copied" : "Copy"}
+            </Button>
+          </div>
+        </div>
+      )}
       <div className="grid gap-6 lg:grid-cols-3">
         <Card title="Create login">
           <form onSubmit={create} className="grid gap-4">
@@ -64,12 +117,9 @@ export default function UsersPage() {
             <Field label="Email">
               <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required />
             </Field>
-            <Field label="Temporary password">
-              <Input value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required minLength={8} />
-            </Field>
             <Field label="Role">
               <Select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value as Role })}>
-                {ROLES.map((r) => (
+                {NEW_LOGIN_ROLES.map((r) => (
                   <option key={r.value} value={r.value}>
                     {r.label}
                   </option>
@@ -81,17 +131,19 @@ export default function UsersPage() {
                 <Select value={form.facility_id} onChange={(e) => setForm({ ...form, facility_id: e.target.value })}>
                   {stockFacilities.map((f) => (
                     <option key={f.id} value={f.id}>
-                      {f.name}
+                      {f.name} · {facilityTypeLabel(f.type)}
                     </option>
                   ))}
                 </Select>
               </Field>
             )}
             {msg && <Alert tone={msg.tone}>{msg.text}</Alert>}
-            <Button type="submit" disabled={busy}>
-              {busy ? "Creating…" : "Create login"}
+            <Button type="submit" disabled={busy === "create"}>
+              {busy === "create" ? "Creating…" : "Create login + get link"}
             </Button>
-            <p className="text-xs text-n800">People who sign up themselves appear below as inactive until you activate them.</p>
+            <p className="text-xs text-n800">
+              No email is sent: you get a one-time link to share. People who sign up themselves appear below as inactive until you activate them.
+            </p>
           </form>
         </Card>
         <Card title={`${users.length} users`} pad={false} className="lg:col-span-2">
@@ -101,46 +153,59 @@ export default function UsersPage() {
                 <Th>User</Th>
                 <Th>Role</Th>
                 <Th>Facility</Th>
-                <Th>Status</Th>
+                <Th>Access</Th>
               </tr>
             </thead>
             <tbody>
-              {users.map((u) => (
-                <tr key={u.id}>
-                  <Td>
-                    <div className="font-medium">{u.full_name}</div>
-                    <div className="text-xs text-n800">{u.email}</div>
-                  </Td>
-                  <Td>
-                    <Select value={u.role} disabled={u.id === me.id} onChange={(e) => update(u.id, { role: e.target.value as Role })} className="h-9 w-44">
-                      {ROLES.map((r) => (
-                        <option key={r.value} value={r.value}>
-                          {r.label}
-                        </option>
-                      ))}
-                    </Select>
-                  </Td>
-                  <Td>
-                    <Select value={u.facility_id ?? ""} onChange={(e) => update(u.id, { facility_id: Number(e.target.value) || null })} className="h-9 w-48">
-                      <option value="">—</option>
-                      {stockFacilities.map((f) => (
-                        <option key={f.id} value={f.id}>
-                          {f.name}
-                        </option>
-                      ))}
-                    </Select>
-                  </Td>
-                  <Td>
-                    {u.id === me.id ? (
-                      <Badge tone="green">you</Badge>
-                    ) : (
-                      <Button variant={u.is_active ? "ghost" : "primary"} size="sm" onClick={() => update(u.id, { is_active: !u.is_active })}>
-                        {u.is_active ? "Deactivate" : "Activate"}
-                      </Button>
-                    )}
-                  </Td>
-                </tr>
-              ))}
+              {users.map((u) => {
+                // only a super admin can change, deactivate or get a link for a super admin
+                const locked = u.role === "super_admin" && !meSuper;
+                return (
+                  <tr key={u.id}>
+                    <Td>
+                      <div className="font-medium">{u.full_name}</div>
+                      <div className="text-xs text-n800">{u.email}</div>
+                    </Td>
+                    <Td>
+                      <Select value={u.role} disabled={u.id === me.id || locked} onChange={(e) => update(u.id, { role: e.target.value as Role })} className="h-9 w-52">
+                        {ROLES.filter((r) => r.value !== "super_admin" || meSuper || u.role === "super_admin").map((r) => (
+                          <option key={r.value} value={r.value}>
+                            {r.label}
+                          </option>
+                        ))}
+                      </Select>
+                    </Td>
+                    <Td>
+                      {u.role === "field_sales" ? (
+                        <span className="text-xs text-n800">Assigned under Facilities → Details</span>
+                      ) : (
+                        <Select value={u.facility_id ?? ""} disabled={locked} onChange={(e) => update(u.id, { facility_id: Number(e.target.value) || null })} className="h-9 w-48">
+                          <option value="">—</option>
+                          {stockFacilities.map((f) => (
+                            <option key={f.id} value={f.id}>
+                              {f.name}
+                            </option>
+                          ))}
+                        </Select>
+                      )}
+                    </Td>
+                    <Td>
+                      <div className="flex items-center gap-2">
+                        <Button variant="ghost" size="sm" disabled={busy === u.id || locked} onClick={() => getLink(u)} title="One-time link to set a password">
+                          <RiLinkM size={14} /> {busy === u.id ? "…" : "Sign-in link"}
+                        </Button>
+                        {u.id === me.id ? (
+                          <Badge tone="green">you</Badge>
+                        ) : locked ? null : (
+                          <Button variant={u.is_active ? "ghost" : "primary"} size="sm" onClick={() => update(u.id, { is_active: !u.is_active })}>
+                            {u.is_active ? "Deactivate" : "Activate"}
+                          </Button>
+                        )}
+                      </div>
+                    </Td>
+                  </tr>
+                );
+              })}
             </tbody>
           </Table>
         </Card>

@@ -13,6 +13,25 @@
   NEXT_PUBLIC_SUPABASE_ANON_KEY = "sb_publishable_PWruDy8Hu7gMqebSKZTwig_naCio3CM"
   SECRETS_SCAN_OMIT_KEYS = "NEXT_PUBLIC_SUPABASE_URL,NEXT_PUBLIC_SUPABASE_ANON_KEY"
 
+# Login pages per audience live at /login/retailer/ and /login/ss/; these catch other spellings
+# (e.g. /login/Retailer, /login/SS). Not forced, so they never shadow the real pages.
+[[redirects]]
+  from = "/login/Retailer"
+  to = "/login/retailer/"
+  status = 301
+[[redirects]]
+  from = "/login/RETAILER"
+  to = "/login/retailer/"
+  status = 301
+[[redirects]]
+  from = "/login/SS"
+  to = "/login/ss/"
+  status = 301
+[[redirects]]
+  from = "/login/super-stockist"
+  to = "/login/ss/"
+  status = 301
+
 # Unknown paths go to the 404 page rather than Netlify's default
 [[redirects]]
   from = "/*"

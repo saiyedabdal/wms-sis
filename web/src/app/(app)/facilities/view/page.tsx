@@ -7,7 +7,7 @@ import { useApp } from "@/components/AppShell";
 import { SkuPicker, type PickedItem } from "@/components/SkuPicker";
 import { Alert, Badge, Button, Card, Empty, Input, PageHeader, Select, Table, Tabs, Td, Textarea, Th } from "@/components/ui";
 import { supabaseBrowser } from "@/lib/supabase/client";
-import { BUCKETS, NON_FG_CATEGORIES, type Bucket } from "@/lib/types";
+import { BUCKETS, NON_FG_CATEGORIES, facilityTypeLabel, type Bucket } from "@/lib/types";
 import { errMsg, inr, priceSplit, suspiciousMrp } from "@/lib/format";
 import { downloadXlsx } from "@/lib/export";
 import { FacilityForm } from "../FacilityForm";
@@ -33,9 +33,14 @@ export default function FacilityDetail() {
   const [tab, setTab] = useState<"assortment" | "margins" | "details">("assortment");
 
   if (!facility) return <Empty title="Facility not found" />;
+  const ss = facilities.find((f) => f.id === facility.fulfiller_ss_id);
   return (
     <>
-      <PageHeader title={facility.name} subtitle={facility.code} back={{ href: "/facilities", label: "Facilities" }} />
+      <PageHeader
+        title={facility.name}
+        subtitle={[facility.code, facilityTypeLabel(facility.type), facility.region, ss && `supplied by ${ss.name}`].filter(Boolean).join(" · ")}
+        back={{ href: "/facilities", label: "Facilities" }}
+      />
       <Tabs
         value={tab}
         onChange={setTab}
@@ -45,7 +50,12 @@ export default function FacilityDetail() {
           { value: "details", label: "Details" },
         ]}
       />
-      {tab === "details" && <FacilityForm initial={facility} />}
+      {tab === "details" && (
+        <div className="flex flex-col gap-6">
+          <AssignedOps facilityId={facilityId} />
+          <FacilityForm initial={facility} />
+        </div>
+      )}
       {tab === "margins" && <Margins facilityId={facilityId} defaultMargin={Number(facility.default_margin_pct)} />}
       {tab === "assortment" && <Assortment facilityId={facilityId} defaultMargin={Number(facility.default_margin_pct)} />}
     </>
@@ -352,5 +362,54 @@ function Assortment({ facilityId, defaultMargin }: { facilityId: number; default
         )}
       </Card>
     </div>
+  );
+}
+
+/** Frido people responsible for this facility: ops get its requests in their review queue, field sales get access to it. */
+function AssignedOps({ facilityId }: { facilityId: number }) {
+  const [people, setPeople] = useState<{ id: string; full_name: string | null; email: string | null; role: string }[]>([]);
+  const [assigned, setAssigned] = useState<Set<string>>(new Set());
+  const [err, setErr] = useState<string | null>(null);
+  const sb = supabaseBrowser();
+
+  const load = async () => {
+    const [{ data: p }, { data: a }] = await Promise.all([
+      sb.from("profiles").select("id,full_name,email,role").in("role", ["ops", "field_sales", "manager", "admin", "super_admin"]).eq("is_active", true).order("full_name"),
+      sb.from("facility_ops").select("user_id").eq("facility_id", facilityId),
+    ]);
+    setPeople(p ?? []);
+    setAssigned(new Set((a ?? []).map((x) => x.user_id)));
+  };
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [facilityId]);
+
+  const toggle = async (userId: string, on: boolean) => {
+    setErr(null);
+    const { error } = on
+      ? await sb.from("facility_ops").insert({ facility_id: facilityId, user_id: userId })
+      : await sb.from("facility_ops").delete().eq("facility_id", facilityId).eq("user_id", userId);
+    if (error) setErr(errMsg(error));
+    load();
+  };
+
+  return (
+    <Card title="Assigned Frido team" actions={<span className="text-xs text-n800">Ops review its requests · field sales can work in it</span>}>
+      <div className="flex flex-wrap gap-x-6 gap-y-3">
+        {people.map((p) => (
+          <label key={p.id} className="flex items-center gap-2 text-sm">
+            <input type="checkbox" className="size-4 accent-[#131313]" checked={assigned.has(p.id)} onChange={(e) => toggle(p.id, e.target.checked)} />
+            {p.full_name || p.email} <span className="text-xs capitalize text-n800">({p.role.replace("_", " ")})</span>
+          </label>
+        ))}
+        {people.length === 0 && <p className="text-sm text-n800">No Frido ops users yet. Create them under Users.</p>}
+      </div>
+      {err && (
+        <div className="mt-3">
+          <Alert>{err}</Alert>
+        </div>
+      )}
+    </Card>
   );
 }

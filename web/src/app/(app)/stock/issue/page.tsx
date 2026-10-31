@@ -1,11 +1,12 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useApp } from "@/components/AppShell";
 import { StockLineEditor, type OutLine } from "@/components/StockLineEditor";
 import { Alert, Button, Card, Empty, Field, Input, PageHeader, Select, Table, Td, Th } from "@/components/ui";
 import { supabaseBrowser } from "@/lib/supabase/client";
-import { ISSUE_PURPOSES, type IssuePurpose } from "@/lib/types";
+import { ISSUE_PURPOSES, type Bucket, type IssuePurpose } from "@/lib/types";
 import { dateTime, errMsg } from "@/lib/format";
 
 interface Past {
@@ -19,6 +20,7 @@ interface Past {
 
 export default function IssuePage() {
   const { facility } = useApp();
+  const grnId = Number(useSearchParams().get("grn")) || null;
   const [lines, setLines] = useState<OutLine[]>([]);
   const [purpose, setPurpose] = useState<IssuePurpose>("training");
   const [issuedTo, setIssuedTo] = useState("");
@@ -41,6 +43,22 @@ export default function IssuePage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // "Issue items" from a receipt pre-fills the good units it booked in
+  useEffect(() => {
+    if (!grnId) return;
+    supabaseBrowser()
+      .from("grn_lines")
+      .select("sku,bucket,received_qty,quarantine_qty,items(name)")
+      .eq("grn_id", grnId)
+      .then(({ data }) => {
+        const pre = ((data ?? []) as unknown as { sku: string; bucket: Bucket; received_qty: number; quarantine_qty: number; items: { name: string } | null }[])
+          .filter((l) => l.received_qty - l.quarantine_qty > 0)
+          .map((l) => ({ sku: l.sku, name: l.items?.name ?? l.sku, bucket: l.bucket, qty: l.received_qty - l.quarantine_qty, msp: 0 }));
+        setLines(() => pre);
+        setKey((k) => k + 1);
+      });
+  }, [grnId]);
 
   const submit = async () => {
     if (!facility) return;

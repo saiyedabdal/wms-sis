@@ -47,6 +47,7 @@
 
   --shadow-card: 0 1px 2px rgb(19 19 19 / 0.04), 0 4px 16px rgb(19 19 19 / 0.04);
   --shadow-cta: 0 4px 12px rgb(255 209 0 / 0.35);
+  --shadow-sheet: 0 -8px 32px rgb(19 19 19 / 0.12);
 }
 
 html,
@@ -55,6 +56,7 @@ body {
   color: var(--color-ink);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* numeric columns line up */
@@ -62,12 +64,42 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* touch: no double-tap zoom delay on till controls */
+button,
+a,
+input,
+select {
+  touch-action: manipulation;
+}
+
 input[type="number"]::-webkit-inner-spin-button {
   opacity: 0.4;
 }
 
+/* print: Hub pages, and the POS 80 mm thermal / A4 documents */
 @media print {
   .no-print {
     display: none !important;
   }
+  html,
+  body {
+    background: white !important;
+  }
+}
+.doc-80 {
+  width: 72mm;
+  font-size: 11px;
+  line-height: 1.35;
+}
+.doc-a4 {
+  width: 186mm;
+  font-size: 11.5px;
+  line-height: 1.4;
 }

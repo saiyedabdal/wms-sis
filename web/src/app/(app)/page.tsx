@@ -7,6 +7,7 @@ import { useApp } from "@/components/AppShell";
 import { Card, Empty, LinkButton, PageHeader, Stat, StatusBadge, Table, Td, Th } from "@/components/ui";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { date, inr, num } from "@/lib/format";
+import { facilityTypeLabel } from "@/lib/types";
 
 interface Dash {
   units: Record<string, number>;
@@ -19,8 +20,45 @@ interface Dash {
 }
 
 export default function Dashboard() {
-  const { facility, isOps } = useApp();
+  const { facility, isOps, isManager, audience, profile } = useApp();
   const [d, setD] = useState<Dash | null>(null);
+  const [todo, setTodo] = useState<{ label: string; count: number; href: string }[]>([]);
+
+  // the few things waiting on this person, across facilities
+  useEffect(() => {
+    const sb = supabaseBrowser();
+    const count = async (q: PromiseLike<{ count: number | null }>) => (await q).count ?? 0;
+    (async () => {
+      const items: { label: string; count: number; href: string }[] = [];
+      if (isManager) {
+        items.push({
+          label: "Waiting for your approval",
+          count: await count(sb.from("order_requests").select("id", { count: "exact", head: true }).eq("status", "pending_approval").neq("sent_for_approval_by", profile.id)),
+          href: "/approvals",
+        });
+      }
+      if (isOps) {
+        items.push({
+          label: "Requests to review & send",
+          count: await count(sb.from("order_requests").select("id", { count: "exact", head: true }).in("status", ["submitted", "draft", "rejected"])),
+          href: "/approvals",
+        });
+        items.push({
+          label: "Orders to dispatch",
+          count: await count(sb.from("fulfilment_orders").select("id", { count: "exact", head: true }).in("status", ["open", "partially_dispatched"])),
+          href: "/fulfilment",
+        });
+      }
+      if (audience === "ss" && facility) {
+        items.push({
+          label: "Orders to fulfil for your retailers",
+          count: await count(sb.from("fulfilment_orders").select("id", { count: "exact", head: true }).eq("fulfiller_id", facility.id).in("status", ["open", "partially_dispatched"])),
+          href: "/fulfilment",
+        });
+      }
+      setTodo(items);
+    })();
+  }, [isOps, isManager, audience, facility, profile.id]);
 
   useEffect(() => {
     if (!facility) return;
@@ -59,16 +97,26 @@ export default function Dashboard() {
     <>
       <PageHeader
         title={facility.name}
-        subtitle={`${facility.code} · ${facility.type === "partner_clinic" ? "Partner clinic" : facility.type === "internal" ? "Frido internal" : "Warehouse"}${facility.is_consignment ? " · Consignment" : ""}`}
+        subtitle={`${facility.code} · ${facilityTypeLabel(facility.type)}${facility.region ? ` · ${facility.region}` : ""}${facility.is_consignment ? " · Consignment" : ""}`}
         actions={
           <>
-            {isOps && <LinkButton href="/requests/new">New request</LinkButton>}
+            <LinkButton href="/requests/new">{isOps ? "New request" : "Request stock"}</LinkButton>
             <LinkButton href="/sales/new" variant="secondary">
               Record sale
             </LinkButton>
           </>
         }
       />
+      {todo.length > 0 && (
+        <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {todo.map((t) => (
+            <Link key={t.label} href={t.href} className="rounded-lg border border-n300 bg-white p-5 hover:border-ink">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-n800">{t.label}</span>
+              <span className={`mt-2 block text-[28px] font-semibold leading-none tabular ${t.count ? "" : "text-n600"}`}>{t.count}</span>
+            </Link>
+          ))}
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <Stat label="Display / sale units" value={num(d?.units.sellable)} tone="yellow" />
         <Stat label="Display-only + in use" value={num((d?.units.display ?? 0) + (d?.units.in_use ?? 0))} hint={`${num(d?.units.damaged)} damaged`} />
@@ -99,20 +147,16 @@ export default function Dashboard() {
             <Empty title="Nothing in transit" />
           )}
         </Card>
-        <Card title="Open requests" pad={false} actions={isOps ? <LinkButton href="/requests" variant="ghost" size="sm">All</LinkButton> : undefined}>
+        <Card title="Open requests" pad={false} actions={<LinkButton href="/requests" variant="ghost" size="sm">All</LinkButton>}>
           {d?.requests.length ? (
             <Table>
               <tbody>
                 {d.requests.map((r) => (
                   <tr key={r.id}>
                     <Td>
-                      {isOps ? (
-                        <Link className="font-medium hover:underline" href={paths.request(r.id)}>
-                          {r.request_no}
-                        </Link>
-                      ) : (
-                        r.request_no
-                      )}
+                      <Link className="font-medium hover:underline" href={paths.request(r.id)}>
+                        {r.request_no}
+                      </Link>
                     </Td>
                     <Td>{date(r.created_at)}</Td>
                     <Td right>

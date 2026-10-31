@@ -7,48 +7,69 @@ import { useApp } from "@/components/AppShell";
 import { Card, Empty, LinkButton, PageHeader, Select, StatusBadge, Table, Td, Th } from "@/components/ui";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { date, statusLabel } from "@/lib/format";
-import type { RequestStatus } from "@/lib/types";
+import { REQUEST_SOURCES, type RequestStatus } from "@/lib/types";
 
 interface Row {
   id: number;
   request_no: string;
-  po_no: string;
+  po_no: string | null;
+  source: string;
   status: string;
   created_at: string;
   facility_id: number;
   order_request_lines: { qty: number }[];
 }
 
-const STATUSES = ["open", "raised", "partially_dispatched", "dispatched", "received", "closed", "cancelled", "all"];
+const STATUSES = ["open", "draft", "submitted", "pending_approval", "approved", "rejected", "partially_dispatched", "dispatched", "received", "closed", "cancelled", "all"];
+const OPEN: RequestStatus[] = ["draft", "submitted", "pending_approval", "approved", "rejected", "partially_dispatched", "dispatched"];
 
 export default function RequestsPage() {
-  const { facilities } = useApp();
+  const { facilities, isOps, facility } = useApp();
   const [rows, setRows] = useState<Row[]>([]);
   const [status, setStatus] = useState("open");
   const [fac, setFac] = useState<string>("all");
 
   useEffect(() => {
-    let q = supabaseBrowser()
-      .from("order_requests")
-      .select("id,request_no,po_no,status,created_at,facility_id,order_request_lines(qty)")
-      .order("created_at", { ascending: false })
-      .limit(200);
-    if (status === "open") q = q.in("status", ["raised", "partially_dispatched", "dispatched"]);
-    else if (status !== "all") q = q.eq("status", status as RequestStatus);
-    if (fac !== "all") q = q.eq("facility_id", Number(fac));
-    q.then(({ data }) => setRows((data ?? []) as Row[]));
-  }, [status, fac]);
+    const sb = supabaseBrowser();
+    (async () => {
+      let q = sb
+        .from("order_requests")
+        .select("id,request_no,po_no,source,status,created_at,facility_id,order_request_lines(qty)")
+        .order("created_at", { ascending: false })
+        .limit(200);
+      if (status === "open") q = q.in("status", OPEN);
+      else if (status !== "all") q = q.eq("status", status as RequestStatus);
+      if (isOps) {
+        if (fac !== "all") q = q.eq("facility_id", Number(fac));
+      } else if (facility) {
+        // RLS already scopes facility logins; this gives a super admin's retailer / SS view the same rows:
+        // the facility's own requests plus, for an SS, the ones it fulfils
+        let ids: number[] = [];
+        if (facility.type === "super_stockist") {
+          const { data } = await sb.from("fulfilment_orders").select("request_id").eq("fulfiller_id", facility.id);
+          ids = [...new Set((data ?? []).map((f) => f.request_id))];
+        }
+        q = q.or(`facility_id.eq.${facility.id}${ids.length ? `,id.in.(${ids.join(",")})` : ""}`);
+      }
+      const { data } = await q;
+      setRows((data ?? []) as Row[]);
+    })();
+  }, [status, fac, isOps, facility]);
 
   const fname = (id: number) => facilities.find((f) => f.id === id)?.name ?? id;
 
   return (
     <>
-      <PageHeader title="Order requests" subtitle="Stock requested from the warehouse. Each request carries its PO for Finance." actions={<LinkButton href="/requests/new">New request</LinkButton>} />
+      <PageHeader
+        title="Tracking"
+        subtitle="Every request from draft to received. Open one to see its approval, routing, shipments and courier tracking."
+        actions={<LinkButton href="/requests/new">{isOps ? "New request" : "Request stock"}</LinkButton>}
+      />
       <Card
         pad={false}
         actions={
           <>
-            <Select value={fac} onChange={(e) => setFac(e.target.value)} className="h-9 w-52">
+            {isOps && <Select value={fac} onChange={(e) => setFac(e.target.value)} className="h-9 w-52">
               <option value="all">All facilities</option>
               {facilities
                 .filter((f) => f.type !== "warehouse")
@@ -57,7 +78,7 @@ export default function RequestsPage() {
                     {f.name}
                   </option>
                 ))}
-            </Select>
+            </Select>}
             <Select value={status} onChange={(e) => setStatus(e.target.value)} className="h-9 w-48 capitalize">
               {STATUSES.map((s) => (
                 <option key={s} value={s}>
@@ -90,7 +111,7 @@ export default function RequestsPage() {
                     <Link href={paths.request(r.id)} className="font-semibold hover:underline">
                       {r.request_no}
                     </Link>
-                    <div className="text-xs text-n800">{r.po_no}</div>
+                    <div className="text-xs text-n800">{[REQUEST_SOURCES[r.source], r.po_no].filter(Boolean).join(" · ")}</div>
                   </Td>
                   <Td>{fname(r.facility_id)}</Td>
                   <Td>{date(r.created_at)}</Td>

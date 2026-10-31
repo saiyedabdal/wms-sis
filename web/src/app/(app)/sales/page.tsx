@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useApp } from "@/components/AppShell";
 import { Card, Empty, LinkButton, PageHeader, Table, Td, Th } from "@/components/ui";
+import { OutwardTill, tillHref, usePosStatus } from "@/components/pos/OutwardTill";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { dateTime, inr } from "@/lib/format";
 
@@ -20,7 +21,9 @@ interface Line {
 }
 
 export default function SalesPage() {
-  const { facility } = useApp();
+  const { facility, isOps } = useApp();
+  // A facility on the POS sells through the till, so the manual "Record sale" form is hidden there (no double entry)
+  const pos = usePosStatus(facility?.id);
   const [lines, setLines] = useState<Line[]>([]);
 
   useEffect(() => {
@@ -36,7 +39,15 @@ export default function SalesPage() {
 
   return (
     <>
-      <PageHeader title="Sales" subtitle={facility?.is_consignment ? "Each sale adds to what the clinic owes Frido (MSP − margin)" : "Units sold from this facility"} actions={<LinkButton href="/sales/new">Record sale</LinkButton>} />
+      <PageHeader title="Sales" subtitle={facility?.is_consignment ? "Each sale adds to what the clinic owes Frido (MSP − margin)" : "Units sold from this facility"} actions={
+          !facility || pos.state === "loading" ? null : pos.state === "on" ? (
+            <LinkButton href={tillHref(facility.id)}>Open till</LinkButton>
+          ) : (
+            <LinkButton href="/sales/new">Record sale</LinkButton>
+          )
+        }
+      />
+      {facility && <OutwardTill facility={facility} status={pos} canSetUp={isOps} />}
       <Card pad={false}>
         {lines.length === 0 ? (
           <Empty title="No sales yet" />
