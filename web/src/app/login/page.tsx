@@ -5,6 +5,12 @@ import { useEffect, useState } from "react";
 import { Alert, Button, Field, Input } from "@/components/ui";
 import { supabaseBrowser } from "@/lib/supabase/client";
 
+/** Where to go after sign-in: a same-site path from ?next= (the till sends /till/), else the Hub home. */
+function nextPath() {
+  const n = new URLSearchParams(window.location.search).get("next");
+  return n && /^\/(?![/\\])/.test(n) ? n : "/";
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
@@ -13,12 +19,14 @@ export default function LoginPage() {
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ tone: "red" | "green"; text: string } | null>(null);
+  const [toTill, setToTill] = useState(false);
 
   // already signed in (the static site has no middleware to do this)
   useEffect(() => {
+    setToTill(nextPath().startsWith("/till"));
     supabaseBrowser()
       .auth.getSession()
-      .then(({ data }) => data.session && router.replace("/"));
+      .then(({ data }) => data.session && router.replace(nextPath()));
   }, [router]);
 
   const submit = async (e: React.FormEvent) => {
@@ -30,13 +38,13 @@ export default function LoginPage() {
       const { error } = await sb.auth.signInWithPassword({ email, password });
       if (error) setMsg({ tone: "red", text: error.message });
       else {
-        router.replace("/");
+        router.replace(nextPath());
       }
     } else {
       const { data, error } = await sb.auth.signUp({ email, password, options: { data: { full_name: name } } });
       if (error) setMsg({ tone: "red", text: error.message });
       else if (data.session) {
-        router.replace("/");
+        router.replace(nextPath());
       } else setMsg({ tone: "green", text: "Check your inbox to confirm your email, then sign in." });
     }
     setBusy(false);
@@ -64,7 +72,7 @@ export default function LoginPage() {
           <span className="mb-8 block text-3xl font-bold lowercase tracking-tight md:hidden">frido</span>
           <h1 className="text-[28px] font-semibold tracking-tight">{mode === "signin" ? "Sign in to Partner Hub" : "Create account"}</h1>
           <p className="mt-1 text-sm text-n800">
-            {mode === "signin" ? "Use the email and password your admin set up." : "The first account becomes the admin. Others need an admin to activate them."}
+            {mode === "signin" ? (toTill ? "Same login as the Partner Hub. The till opens after you sign in." : "Use the email and password your admin set up.") : "The first account becomes the admin. Others need an admin to activate them."}
           </p>
           <div className="mt-8 flex flex-col gap-5">
             {mode === "signup" && (
