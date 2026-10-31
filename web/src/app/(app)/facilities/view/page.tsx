@@ -365,7 +365,7 @@ function Assortment({ facilityId, defaultMargin }: { facilityId: number; default
   );
 }
 
-/** Frido ops people responsible for this facility: its requests land in their review queue. */
+/** Frido people responsible for this facility: ops get its requests in their review queue, field sales get access to it. */
 function AssignedOps({ facilityId }: { facilityId: number }) {
   const [people, setPeople] = useState<{ id: string; full_name: string | null; email: string | null; role: string }[]>([]);
   const [assigned, setAssigned] = useState<Set<string>>(new Set());
@@ -374,7 +374,7 @@ function AssignedOps({ facilityId }: { facilityId: number }) {
 
   const load = async () => {
     const [{ data: p }, { data: a }] = await Promise.all([
-      sb.from("profiles").select("id,full_name,email,role").in("role", ["ops", "manager", "admin", "super_admin"]).eq("is_active", true).order("full_name"),
+      sb.from("profiles").select("id,full_name,email,role").in("role", ["ops", "field_sales", "manager", "admin", "super_admin"]).eq("is_active", true).order("full_name"),
       sb.from("facility_ops").select("user_id").eq("facility_id", facilityId),
     ]);
     setPeople(p ?? []);
@@ -395,12 +395,12 @@ function AssignedOps({ facilityId }: { facilityId: number }) {
   };
 
   return (
-    <Card title="Assigned ops" actions={<span className="text-xs text-n800">Their review queue shows this facility&apos;s requests</span>}>
+    <Card title="Assigned Frido team" actions={<span className="text-xs text-n800">Ops review its requests · field sales can work in it</span>}>
       <div className="flex flex-wrap gap-x-6 gap-y-3">
         {people.map((p) => (
           <label key={p.id} className="flex items-center gap-2 text-sm">
             <input type="checkbox" className="size-4 accent-[#131313]" checked={assigned.has(p.id)} onChange={(e) => toggle(p.id, e.target.checked)} />
-            {p.full_name || p.email} <span className="text-xs capitalize text-n800">({p.role})</span>
+            {p.full_name || p.email} <span className="text-xs capitalize text-n800">({p.role.replace("_", " ")})</span>
           </label>
         ))}
         {people.length === 0 && <p className="text-sm text-n800">No Frido ops users yet. Create them under Users.</p>}

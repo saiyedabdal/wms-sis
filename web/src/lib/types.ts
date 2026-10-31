@@ -1,4 +1,4 @@
-export type Role = "super_admin" | "admin" | "manager" | "ops" | "facility_staff";
+export type Role = "super_admin" | "admin" | "manager" | "ops" | "field_sales" | "facility_staff";
 export type FacilityType = "warehouse" | "retailer" | "super_stockist" | "internal";
 export type Bucket = "sellable" | "display" | "in_use" | "damaged" | "quarantine";
 export type RequestStatus =
@@ -23,6 +23,7 @@ export interface Profile {
   role: Role;
   facility_id: number | null;
   is_active: boolean;
+  must_change_password?: boolean;
 }
 
 export interface Facility {
@@ -172,3 +173,6 @@ export const facilityTypeLabel = (t: FacilityType) => FACILITY_TYPES.find((x) =>
 export const holdsStock = (t: FacilityType) => t !== "warehouse";
 
 export const REQUEST_SOURCES: Record<string, string> = { schedule: "Demand plan", retailer: "Raised by facility", ops: "Raised by Frido" };
+
+/** Frido's product categories, used by season factors and the onboarding form. */
+export const CATEGORIES = ["Orthotics", "Cushions", "Pillows", "Insole", "Footwear", "Socks", "Mobility", "Wheelchairs", "Medical Cushions", "Ankle Support", "Health and wellness"];

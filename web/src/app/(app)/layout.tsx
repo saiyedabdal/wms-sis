@@ -29,6 +29,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         sb.from("facilities").select("*").order("name"),
       ]);
       if (!profile || !profile.is_active) return setState({ kind: "inactive" });
+      // logins made from an approved application start with a temporary password
+      if (profile.must_change_password) return router.replace("/reset-password/?first=1");
       setState({ kind: "ready", profile: profile as Profile, facilities: (facilities ?? []) as Facility[] });
     })();
     const { data: sub } = sb.auth.onAuthStateChange((event) => {
