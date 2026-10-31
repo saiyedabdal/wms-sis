@@ -3,7 +3,7 @@
 Status: **live prototype**, built from `docs/POS-BRIEF.md` (Rev 2) and `docs/POS-DECISIONS.md` on branch `claude/frido-pos-partner-brief-67w213`.
 - **Database:** both `pos_` migrations were applied to `frido-wms` on 30 Oct 2026 (`20261030194621 pos_core`, `20261030195159 pos_rpc`).
 - **App:** part of the **Partner Hub** (`web/`) since 31 Oct 2026 (Decision 12): **Outward → Point of sale → Open till** opens a full-screen till at `/till/`. One app, one login (§1b).
-- **Preview:** the merged Hub + POS build is deployed to **https://wms-sis-pos.netlify.app** (Netlify project `wms-sis-pos`). The Hub's own site (`wms-sis`) gets the till when this branch is merged and deployed there.
+- **Live:** on the Hub's own site, **https://frido-cdn.netlify.app** (Netlify project `frido-cdn`, formerly `wms-sis`), from 31 Oct 2026. The Hub was renamed Frido CDN and its production branch is `claude/awesome-turing-qys76w`; the POS is merged into it. The `wms-sis-pos` preview site is no longer needed.
 - **Data:** no clinic is on the POS yet. A Frido super admin or ops user does that from Outward → **Set up POS**, or Till → Admin → Setup (screen 12 in §5).
 
 The design checkpoint was skipped at the user's request ("build a proto with what you know; keep open decisions open"). This file describes what was built, the assumptions it makes, and the changes proposed for the Partner Hub.
@@ -36,8 +36,9 @@ Decision 12 (31 Oct 2026): the POS is part of the Outward module, not a separate
 
 - **One login:**
   - The till uses the Hub's Supabase browser client, so the Hub and the till share one session.
-  - A signed-out visit to `/till/` goes to the Hub login with `?next=/till/` and comes back after sign-in.
-  - Only same-site paths are honoured in `next`.
+  - A signed-out visit to `/till/` goes to the retailer login (`/login/retailer/?next=/till/`, since clinics are retailers). It opens on Sign in rather than the onboarding form, and comes back to the till afterwards.
+  - Signing out of the till returns clinic staff to that page and Frido ops to `/login/?next=/till/`.
+  - Only same-site paths are honoured in `next` (`LoginScreen`).
 - **Outward (`/sales/`):**
   - **On the POS:** the Point of sale card shows today's paid sales, returns (credit notes), open shifts out of active tills, and bills needing attention, with links into till mode. **Open till** replaces Record sale, so a clinic doesn't enter the same sale twice.
   - **Not on the POS:** Frido ops see **Set up POS**, which opens till Admin → Setup with that facility already chosen. Everyone else sees the usual Record sale.
@@ -54,7 +55,7 @@ Decision 12 (31 Oct 2026): the POS is part of the Outward module, not a separate
   - `/doc/?t=` stays public.
 - **Hub code touched (UI only, no database change):**
   - `web/src/app/(app)/sales/page.tsx`: the POS card and the Open till / Record sale switch.
-  - `web/src/app/login/page.tsx`: honours `?next=`.
+  - `web/src/components/LoginScreen.tsx`: honours `?next=`.
   - `web/src/app/globals.css`: the POS print sizes, sheet shadow, `no-scrollbar` and `touch-action`.
   - `web/package.json`: adds `qrcode`.
   - The Hub's sidebar (`AppShell`) is unchanged; Outward stays step 3.
@@ -192,7 +193,7 @@ Tablet landscape first (1280×800), with desktop and phone layouts. Frido Design
 | # | Screen | Layout and key actions | Empty, error and edge states |
 |---|---|---|---|
 | 0 | **Outward → Point of sale** (`/sales/`) | Hub page: Open till (header), today's sales / returns / shifts open / needs attention, links into till mode, the sales list below with POS bills by invoice number | Not on the POS: ops see Set up POS; others see the usual Record sale |
-| 1 | **Login** (the Hub's `/login/?next=/till/`) | The Partner Hub sign-in; returns to the till afterwards | Wrong credentials message. OTP login is not built; it uses Hub accounts like the Hub does |
+| 1 | **Login** (Frido CDN's `/login/retailer/?next=/till/`) | The Frido CDN sign-in, opened on Sign in; returns to the till afterwards | Wrong credentials message. OTP login is not built; it uses Hub accounts like the Hub does |
 | 1b | **PIN switch** (modal) | Staff tiles (clinic managers and cashiers first, then Frido admins, who can also open the till and sell) + 3×4 keypad + dots; physical keyboard works; "Tap your name above" until a person is picked; "Back to Partner Hub" link | Wrong PIN shows tries left; 5 wrong locks for 5 minutes; "no PIN set" shown on the tile |
 | – | Facility / till pickers | Shown only when the device user can see several clinics, or the clinic has several tills; the device remembers its till | "Clinic not on the POS yet" with a link to Setup for Frido ops |
 | 2 | **Open shift** | Opening float input + quick amounts | Shown whenever the till has no open shift |
@@ -214,7 +215,7 @@ Tablet landscape first (1280×800), with desktop and phone layouts. Frido Design
 ```
 web/                                   the Partner Hub: Next.js 15 static export (Netlify), Supabase JS from the browser
   src/app/(app)/sales/page.tsx         Outward: Point of sale card, Open till / Record sale
-  src/app/login/                       the Hub sign-in (honours ?next=)
+  src/components/LoginScreen.tsx       Frido CDN sign-in for /login/, /login/retailer/, /login/ss/ (honours ?next=)
   src/app/till/                        till mode: layout.tsx (viewport + TillRoot), page.tsx (Sell), invoices/, returns/, cash/, reports/, admin/
   src/app/doc/                         public invoice / credit note (share link; print 80 mm / A4)
   src/components/pos/                  POS ui kit, TillRoot, Shell (top bar, gating, Hub exit), PinPad, ScanField, DocView, OutwardTill, sell/*
@@ -342,7 +343,7 @@ Edge Function secrets:
 | Milestone | What | Needs |
 |---|---|---|
 | M0 Prototype | **Done on this branch** (all slices above) | – |
-| M1 Pilot at Neuromatics | ~~Apply both `pos_` migrations to `frido-wms` + run advisors~~ (done 30 Oct); ~~merge into the Hub under Outward~~ (done 31 Oct; preview on wms-sis-pos.netlify.app, live with the Hub when this branch is merged); put Neuromatics on the POS (Admin → Setup) once its invoicing entity is known; create real clinic logins in the Hub and their PINs; fix assortment MSP/HSN/GST; printer setup per till (RawBT on Android, USB on PC); staff training | Finance answers (entity, GSTIN, rates); returns decision |
+| M1 Pilot at Neuromatics | ~~Apply both `pos_` migrations to `frido-wms` + run advisors~~ (done 30 Oct); ~~merge into the Hub under Outward~~ (done 31 Oct; live on frido-cdn.netlify.app); put Neuromatics on the POS (Admin → Setup) once its invoicing entity is known; create real clinic logins in the Hub and their PINs; fix assortment MSP/HSN/GST; printer setup per till (RawBT on Android, USB on PC); staff training | Finance answers (entity, GSTIN, rates); returns decision |
 | M2 Money paths | Razorpay keys + webhook live for Frido-invoiced facilities; petty-cash receipt photos (Storage bucket `pos-receipts`); H1 + H2 in the Hub | Razorpay account per entity; H1/H2 approval |
 | M3 Polish | Needs-attention alerts (email/WhatsApp to the manager); connectivity report; customer purchase history in the sheet; per-clinic printer test page | – |
 
@@ -353,7 +354,7 @@ Edge Function secrets:
 - **Tests:** `PGHOST=<socket dir> PGPORT=<port> supabase/tests/pos/run.sh` against any local Postgres 16 superuser.
 - **App:** `cd web && npm install && npm run dev`, sign in, then Outward → Open till (or go to `/till/`). `web/.env.local` holds `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` (see `web/.env.example`). The project needs the `pos_` migrations.
 - **Deploy:**
-  - **Hub site (`wms-sis`):** the till ships with the Hub; nothing extra once this branch is merged.
-  - **Preview (`wms-sis-pos`):** a manual upload, not connected to Git.
-    - Upload only the committed tree: `git archive HEAD web netlify.toml` into an empty folder, then run the Netlify deploy command from there.
-    - Uploading the working copy fails: the uploader skips only the top-level `node_modules`, so `web/node_modules`, `.next` and `out` go up too (the first upload on 31 Oct failed this way).
+  - **Frido CDN (`frido-cdn`):** the till ships with the Hub, from the Hub's production branch (`claude/awesome-turing-qys76w`). There is no separate POS site.
+  - **Manual uploads** (Netlify deploy command):
+    - Upload only the committed tree: `git archive HEAD web netlify.toml` into an empty folder, then run the deploy command from there.
+    - Uploading the working copy fails: the uploader skips only the top-level `node_modules`, so `web/node_modules`, `.next` and `out` go up too (an upload on 31 Oct failed this way).

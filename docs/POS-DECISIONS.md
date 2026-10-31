@@ -165,7 +165,7 @@ The returns slice is designed so the credit-note and refund-queue logic is the s
 
 Asked on 31 Oct 2026, after the manager's module structure put selling under Outward. Answer: **"Yes, merge it under Outward with till mode."**
 
-- **One app, one login:** the POS is part of the Partner Hub (`web/`), not a second site. Staff sign in once with their Hub account.
+- **One app, one login:** the POS is part of the Hub (`web/`, now called Frido CDN, live at frido-cdn.netlify.app), not a second site. Staff sign in once with their Frido CDN account.
 - **Outward → Point of sale:** the Outward page (`/sales/`) shows the facility's POS figures for today and an **Open till** button.
 - **Till mode:** `/till/…` runs full screen, outside the Hub's sidebar, with the staff PIN layer on top. The **Hub** button (or "Back to Partner Hub" on the PIN screen) returns to Outward.
 - **No double entry:** for a facility on the POS, Outward shows Open till instead of the manual Record sale form.
