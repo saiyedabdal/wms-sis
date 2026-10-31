@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabaseBrowser } from "@/lib/supabase/client";
+import { loginPath } from "@/lib/paths";
 
 /**
  * The Hub's browser client (one login, one session). POS tables and functions are not in the Hub's generated
@@ -8,6 +9,9 @@ import { supabaseBrowser } from "@/lib/supabase/client";
 export function sb() {
   return supabaseBrowser() as unknown as SupabaseClient;
 }
+
+/** The login page the till sends people to: clinic staff use the retailer page, Frido ops the team page. */
+export const tillLogin = (isOps?: boolean) => `${loginPath(isOps ? "admin" : "retailer")}?next=/till/`;
 
 export class RpcError extends Error {
   hint: string | null;

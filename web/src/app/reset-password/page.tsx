@@ -4,8 +4,10 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Alert, Button, Field, Input } from "@/components/ui";
 import { supabaseBrowser } from "@/lib/supabase/client";
+import { Brand } from "@/components/Brand";
 
-/** Landing page for the one-time sign-in links admins share: the person chooses their password here. */
+/** Landing page for the one-time sign-in links admins share, and for the first sign-in with a temporary password:
+ *  the person chooses their own password here. */
 export default function ResetPasswordPage() {
   const router = useRouter();
   const [ready, setReady] = useState<"wait" | "ok" | "invalid">("wait");
@@ -14,8 +16,10 @@ export default function ResetPasswordPage() {
   const [pw2, setPw2] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [first, setFirst] = useState(false);
 
   useEffect(() => {
+    setFirst(new URLSearchParams(window.location.search).has("first"));
     const sb = supabaseBrowser();
     // the link signs the person in via the URL fragment; supabase-js picks it up on load
     const { data: sub } = sb.auth.onAuthStateChange((_e, session) => {
@@ -44,7 +48,9 @@ export default function ResetPasswordPage() {
     if (pw !== pw2) return setErr("Passwords don't match");
     setBusy(true);
     setErr(null);
-    const { error } = await supabaseBrowser().auth.updateUser({ password: pw });
+    const sb = supabaseBrowser();
+    const { error } = await sb.auth.updateUser({ password: pw });
+    if (!error) await sb.rpc("password_changed");
     setBusy(false);
     if (error) return setErr(error.message);
     router.replace("/");
@@ -53,9 +59,9 @@ export default function ResetPasswordPage() {
   return (
     <div className="flex min-h-screen items-center justify-center p-6">
       <div className="w-full max-w-sm">
-        <span className="mb-2 block text-3xl font-bold lowercase tracking-tight">frido</span>
-        <span className="rounded-xs bg-yellow px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide">Partner Hub</span>
-        <h1 className="mt-8 text-[28px] font-semibold tracking-tight">Set your password</h1>
+        <Brand size="lg" />
+        <h1 className="mt-8 text-[28px] font-semibold tracking-tight">{first ? "Welcome! Choose your password" : "Set your password"}</h1>
+        {first && <p className="mt-2 text-sm text-n800">You signed in with a temporary password. Pick your own to continue.</p>}
         {ready === "wait" && <p className="mt-2 text-sm text-n800">Checking your link…</p>}
         {ready === "invalid" && (
           <div className="mt-6 flex flex-col gap-4">

@@ -22,10 +22,13 @@ import {
   RiRouteLine,
   RiShoppingBag3Line,
   RiTeamLine,
+  RiUserAddLine,
   RiTruckLine,
 } from "@remixicon/react";
+import { loginPath } from "@/lib/paths";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import type { Facility, Profile, Role } from "@/lib/types";
+import { Brand } from "./Brand";
 import { cx } from "./ui";
 
 /** Who is looking: Frido (admin / manager / ops), a retailer's staff, or a super stockist's staff. */
@@ -66,7 +69,7 @@ export function useApp() {
   return v;
 }
 
-type Badge = "approvals" | "fulfilment";
+type Badge = "approvals" | "fulfilment" | "onboarding";
 interface NavItem {
   href: string;
   label: string;
@@ -110,6 +113,7 @@ const NAV: { title?: string; items: NavItem[] }[] = [
     title: "Admin",
     items: [
       { href: "/facilities", label: "Facilities", icon: RiBuilding2Line, who: ["frido"] },
+      { href: "/onboarding", label: "Onboarding", icon: RiUserAddLine, who: ["frido"], admin: true, badge: "onboarding" },
       { href: "/users", label: "Users", icon: RiTeamLine, who: ["frido"], admin: true },
     ],
   },
@@ -154,13 +158,25 @@ export function AppShell({
   const isAdmin = role === "super_admin" || role === "admin";
   const isManager = isAdmin || role === "manager";
   const isOps = isManager || role === "ops";
-  const canPickFacility = isOps || isSuperAdmin;
+  // field sales switch between the retailers / SS assigned to them (Facilities → Details → Assigned Frido team)
+  const isFieldSales = profile.role === "field_sales";
+  const [assigned, setAssigned] = useState<number[]>([]);
+  useEffect(() => {
+    if (!isFieldSales) return;
+    supabaseBrowser()
+      .from("facility_ops")
+      .select("facility_id")
+      .eq("user_id", profile.id)
+      .then(({ data }) => setAssigned((data ?? []).map((x) => x.facility_id)));
+  }, [isFieldSales, profile.id]);
+  const canPickFacility = isOps || isSuperAdmin || isFieldSales;
   const [open, setOpen] = useState(false);
   const stockFacilities = useMemo(() => {
     const active = facilities.filter((f) => f.type !== "warehouse" && f.is_active);
     if (isOps) return active;
+    if (isFieldSales) return active.filter((f) => assigned.includes(f.id));
     return active.filter((f) => (view === "ss" ? f.type === "super_stockist" : f.type !== "super_stockist"));
-  }, [facilities, isOps, view]);
+  }, [facilities, isOps, isFieldSales, assigned, view]);
   const [facilityId, setFacilityIdState] = useState<number | null>(canPickFacility ? null : profile.facility_id);
 
   useEffect(() => {
@@ -184,13 +200,17 @@ export function AppShell({
 
   const facility = facilities.find((f) => f.id === facilityId) ?? null;
   const audience: Audience = isOps ? "frido" : facility?.type === "super_stockist" ? "ss" : "retailer";
-  const [badges, setBadges] = useState<Record<Badge, number>>({ approvals: 0, fulfilment: 0 });
+  const [badges, setBadges] = useState<Record<Badge, number>>({ approvals: 0, fulfilment: 0, onboarding: 0 });
 
   // counts shown next to Approvals / Fulfilment, refreshed on navigation
   useEffect(() => {
     const sb = supabaseBrowser();
     (async () => {
-      const next: Record<Badge, number> = { approvals: 0, fulfilment: 0 };
+      const next: Record<Badge, number> = { approvals: 0, fulfilment: 0, onboarding: 0 };
+      if (isAdmin) {
+        const { count } = await sb.from("vendor_applications").select("id", { count: "exact", head: true }).eq("status", "pending");
+        next.onboarding = count ?? 0;
+      }
       if (isOps) {
         const statuses = isManager ? ["pending_approval"] : ["submitted"];
         const { count } = await sb.from("order_requests").select("id", { count: "exact", head: true }).in("status", statuses as never);
@@ -204,10 +224,15 @@ export function AppShell({
       }
       setBadges(next);
     })();
-  }, [pathname, isOps, isManager, audience, facility]);
+  }, [pathname, isOps, isManager, isAdmin, audience, facility]);
+  // back to the login page this person uses (the app layout reads it when the session ends)
   const signOut = async () => {
+    const own = facilities.find((f) => f.id === profile.facility_id);
+    const portal = profile.role !== "facility_staff" ? "admin" : own?.type === "super_stockist" ? "super_stockist" : "retailer";
+    try {
+      sessionStorage.setItem("wms.loginPath", loginPath(portal));
+    } catch {}
     await supabaseBrowser().auth.signOut();
-    router.replace("/login/");
   };
 
   // the most specific nav href that matches the current path wins
@@ -224,9 +249,8 @@ export function AppShell({
           )}
         >
           <div className="flex items-center justify-between px-5 py-5">
-            <Link href="/" className="flex items-baseline gap-2">
-              <span className="text-2xl font-bold lowercase tracking-tight">frido</span>
-              <span className="rounded-xs bg-yellow px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ink">Partner Hub</span>
+            <Link href="/">
+              <Brand />
             </Link>
             <button className="md:hidden" onClick={() => setOpen(false)} aria-label="Close menu">
               <RiCloseLine />
@@ -347,7 +371,9 @@ export function AppShell({
               <div className="rounded-lg border border-y75 bg-y50 p-6 text-sm">
                 {isSuperAdmin
                   ? `There is no active ${view === "ss" ? "super stockist" : "retailer or store"} facility yet. Create one under Facilities in the admin view, then come back.`
-                  : "Your login is not linked to a facility yet. Ask an admin to assign you on the Users page."}
+                  : isFieldSales
+                    ? "No retailers are assigned to you yet. Ask an admin to add you under Facilities → a facility → Details → Assigned Frido team."
+                    : "Your login is not linked to a facility yet. Ask an admin to assign you on the Users page."}
               </div>
             ) : (
               children

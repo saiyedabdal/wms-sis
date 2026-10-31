@@ -866,6 +866,7 @@ export type Database = {
           full_name: string | null
           id: string
           is_active: boolean
+          must_change_password: boolean
           role: Database["public"]["Enums"]["user_role"]
         }
         Insert: {
@@ -875,6 +876,7 @@ export type Database = {
           full_name?: string | null
           id: string
           is_active?: boolean
+          must_change_password?: boolean
           role?: Database["public"]["Enums"]["user_role"]
         }
         Update: {
@@ -884,6 +886,7 @@ export type Database = {
           full_name?: string | null
           id?: string
           is_active?: boolean
+          must_change_password?: boolean
           role?: Database["public"]["Enums"]["user_role"]
         }
         Relationships: [
@@ -1561,6 +1564,122 @@ export type Database = {
           },
         ]
       }
+      vendor_applications: {
+        Row: {
+          address: string
+          applying_as: Database["public"]["Enums"]["facility_type"]
+          business_name: string
+          business_type: string | null
+          city: string
+          created_at: string
+          decided_at: string | null
+          decided_by: string | null
+          decision_note: string | null
+          email_sent_at: string | null
+          facility_id: number | null
+          frido_manage_stock: boolean | null
+          gstin: string | null
+          id: number
+          legal_name: string | null
+          maintains_stock: boolean
+          notes: string | null
+          pincode: string
+          poc_designation: string | null
+          poc_email: string
+          poc_name: string
+          poc_phone: string
+          product_categories: string[]
+          products_other: string | null
+          referred_by: string | null
+          state: string
+          status: string
+          stock_location: string | null
+          stock_poc_email: string | null
+          stock_poc_name: string | null
+          stock_poc_phone: string | null
+          stock_tracking: string | null
+          user_id: string | null
+        }
+        Insert: {
+          address: string
+          applying_as: Database["public"]["Enums"]["facility_type"]
+          business_name: string
+          business_type?: string | null
+          city: string
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          decision_note?: string | null
+          email_sent_at?: string | null
+          facility_id?: number | null
+          frido_manage_stock?: boolean | null
+          gstin?: string | null
+          id?: number
+          legal_name?: string | null
+          maintains_stock: boolean
+          notes?: string | null
+          pincode: string
+          poc_designation?: string | null
+          poc_email: string
+          poc_name: string
+          poc_phone: string
+          product_categories?: string[]
+          products_other?: string | null
+          referred_by?: string | null
+          state: string
+          status?: string
+          stock_location?: string | null
+          stock_poc_email?: string | null
+          stock_poc_name?: string | null
+          stock_poc_phone?: string | null
+          stock_tracking?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          address?: string
+          applying_as?: Database["public"]["Enums"]["facility_type"]
+          business_name?: string
+          business_type?: string | null
+          city?: string
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          decision_note?: string | null
+          email_sent_at?: string | null
+          facility_id?: number | null
+          frido_manage_stock?: boolean | null
+          gstin?: string | null
+          id?: number
+          legal_name?: string | null
+          maintains_stock?: boolean
+          notes?: string | null
+          pincode?: string
+          poc_designation?: string | null
+          poc_email?: string
+          poc_name?: string
+          poc_phone?: string
+          product_categories?: string[]
+          products_other?: string | null
+          referred_by?: string | null
+          state?: string
+          status?: string
+          stock_location?: string | null
+          stock_poc_email?: string | null
+          stock_poc_name?: string | null
+          stock_poc_phone?: string | null
+          stock_tracking?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_applications_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       v_fo_lines: {
@@ -1820,6 +1939,18 @@ export type Database = {
         Args: { p_grn_id: number; p_grn_line_id: number; p_path: string }
         Returns: number
       }
+      approve_vendor_application: {
+        Args: {
+          p_code: string
+          p_fulfiller_ss_id: number
+          p_id: number
+          p_is_consignment: boolean
+          p_margin_pct: number
+          p_name: string
+          p_note: string
+        }
+        Returns: number
+      }
       approve_request: {
         Args: { p_note: string; p_request_id: number }
         Returns: undefined
@@ -1937,6 +2068,7 @@ export type Database = {
         Args: { p_request_id: number }
         Returns: undefined
       }
+      password_changed: { Args: never; Returns: undefined }
       reject_request: {
         Args: { p_note: string; p_request_id: number }
         Returns: undefined
@@ -1957,7 +2089,9 @@ export type Database = {
         }
         Returns: number
       }
+      remove_vendor_application: { Args: { p_id: number; p_note: string }; Returns: undefined }
       run_demand_planning: { Args: { p_facility_id: number }; Returns: number }
+      submit_vendor_application: { Args: { p: Json }; Returns: number }
       send_for_approval: { Args: { p_request_id: number }; Returns: undefined }
       set_request_state: {
         Args: {
@@ -2020,7 +2154,7 @@ export type Database = {
         | "cancelled"
       shipment_status: "in_transit" | "received"
       stock_bucket: "sellable" | "display" | "in_use" | "damaged" | "quarantine"
-      user_role: "super_admin" | "admin" | "manager" | "ops" | "facility_staff"
+      user_role: "super_admin" | "admin" | "manager" | "ops" | "field_sales" | "facility_staff"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -2196,7 +2330,7 @@ export const Constants = {
       ],
       shipment_status: ["in_transit", "received"],
       stock_bucket: ["sellable", "display", "in_use", "damaged", "quarantine"],
-      user_role: ["super_admin", "admin", "manager", "ops", "facility_staff"],
+      user_role: ["super_admin", "admin", "manager", "ops", "field_sales", "facility_staff"],
     },
   },
 } as const

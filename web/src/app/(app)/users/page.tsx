@@ -7,10 +7,12 @@ import { Alert, Badge, Button, Card, Field, Input, PageHeader, Select, Table, Td
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { facilityTypeLabel, type Profile, type Role } from "@/lib/types";
 import { errMsg } from "@/lib/format";
+import { adminUsers } from "@/lib/adminUsers";
 
 const ROLES: { value: Role; label: string }[] = [
   { value: "facility_staff", label: "Facility staff (retailer / SS)" },
   { value: "ops", label: "Frido ops" },
+  { value: "field_sales", label: "Field sales team" },
   { value: "manager", label: "Manager (approves requests)" },
   { value: "admin", label: "Admin" },
   { value: "super_admin", label: "Super admin (can switch views)" },
@@ -18,18 +20,6 @@ const ROLES: { value: Role; label: string }[] = [
 // new logins get any role but super admin; a super admin promotes someone from the table instead
 const NEW_LOGIN_ROLES = ROLES.filter((r) => r.value !== "super_admin");
 
-/** Calls the admin-create-user Edge Function; non-2xx responses carry the reason in the JSON body. */
-async function adminUsers(body: Record<string, unknown>) {
-  const { data, error } = await supabaseBrowser().functions.invoke("admin-create-user", {
-    body: { ...body, redirect_to: `${window.location.origin}/reset-password/` },
-  });
-  if (error) {
-    const reason = (await (error as { context?: Response }).context?.json?.().catch(() => null))?.error;
-    throw new Error(reason ?? errMsg(error));
-  }
-  if (data?.error) throw new Error(data.error);
-  return data as { link: string; id?: string };
-}
 
 export default function UsersPage() {
   const { facilities, profile: me } = useApp();
@@ -63,7 +53,7 @@ export default function UsersPage() {
     setMsg(null);
     setLink(null);
     try {
-      const res = await adminUsers({
+      const res = await adminUsers<{ link: string; id?: string }>({
         action: "create",
         ...form,
         facility_id: form.role === "facility_staff" ? Number(form.facility_id) || null : null,
@@ -81,7 +71,7 @@ export default function UsersPage() {
     setBusy(u.id);
     setMsg(null);
     try {
-      const res = await adminUsers({ action: "link", user_id: u.id });
+      const res = await adminUsers<{ link: string; id?: string }>({ action: "link", user_id: u.id });
       setLink({ who: u.email ?? u.full_name ?? "", url: res.link });
     } catch (err) {
       setMsg({ tone: "red", text: errMsg(err) });
@@ -186,14 +176,18 @@ export default function UsersPage() {
                       </Select>
                     </Td>
                     <Td>
-                      <Select value={u.facility_id ?? ""} disabled={locked} onChange={(e) => update(u.id, { facility_id: Number(e.target.value) || null })} className="h-9 w-48">
-                        <option value="">—</option>
-                        {stockFacilities.map((f) => (
-                          <option key={f.id} value={f.id}>
-                            {f.name}
-                          </option>
-                        ))}
-                      </Select>
+                      {u.role === "field_sales" ? (
+                        <span className="text-xs text-n800">Assigned under Facilities → Details</span>
+                      ) : (
+                        <Select value={u.facility_id ?? ""} disabled={locked} onChange={(e) => update(u.id, { facility_id: Number(e.target.value) || null })} className="h-9 w-48">
+                          <option value="">—</option>
+                          {stockFacilities.map((f) => (
+                            <option key={f.id} value={f.id}>
+                              {f.name}
+                            </option>
+                          ))}
+                        </Select>
+                      )}
                     </Td>
                     <Td>
                       <div className="flex items-center gap-2">

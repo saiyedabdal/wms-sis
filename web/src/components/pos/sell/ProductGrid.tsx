@@ -36,7 +36,7 @@ export function ProductGrid({ items, query, category, onCategory, onAdd, inCart 
       </div>
       {shown.length === 0 ? (
         <Empty icon={<RiSearchLine />} title={q ? `Nothing matches “${query}”` : "No products here"}>
-          {q ? "Check the barcode or try part of the name. Only this clinic's assortment can be sold." : "This clinic's assortment is empty. Frido ops add SKUs in the Partner Hub."}
+          {q ? "Check the barcode or try part of the name. Only this clinic's assortment can be sold." : "This clinic's assortment is empty. Frido ops add SKUs in the Frido CDN."}
         </Empty>
       ) : (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">

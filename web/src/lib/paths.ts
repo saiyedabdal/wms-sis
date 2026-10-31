@@ -14,3 +14,7 @@ export const paths = {
 export function useIdParam() {
   return useSearchParams().get("id") ?? "";
 }
+
+/** Login page per audience: retailers and super stockists have their own (with their onboarding form). */
+export const loginPath = (who: "admin" | "field_sales" | "retailer" | "super_stockist") =>
+  who === "retailer" ? "/login/retailer/" : who === "super_stockist" ? "/login/ss/" : "/login/";

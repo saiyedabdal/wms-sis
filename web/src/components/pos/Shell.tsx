@@ -10,6 +10,7 @@ import { time } from "@/lib/pos/format";
 import { PinPad } from "./PinPad";
 import { Alert, Button, Card, Spinner, ToastHost, cx } from "./ui";
 import type { StaffSession } from "@/lib/pos/types";
+import { tillLogin } from "@/lib/pos/supabase";
 
 const NAV = [
   { href: "/till/", label: "Sell", icon: RiShoppingBag3Line },
@@ -19,7 +20,7 @@ const NAV = [
   { href: "/till/admin/", label: "Admin", icon: RiSettings3Line },
 ];
 
-/** Where "exit till" goes: the Outward module of the Partner Hub. */
+/** Where "exit till" goes: the Outward module of the Frido CDN. */
 export const HUB_HOME = "/sales/";
 
 export function Logo({ className }: { className?: string }) {
@@ -31,7 +32,7 @@ function Splash({ children }: { children: ReactNode }) {
     <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-n100 p-6">
       <Logo className="text-4xl" />
       {children}
-      <Link href={HUB_HOME} className="text-sm font-medium text-n800 hover:text-ink">← Back to Partner Hub</Link>
+      <Link href={HUB_HOME} className="text-sm font-medium text-n800 hover:text-ink">← Back to Frido CDN</Link>
     </div>
   );
 }
@@ -57,7 +58,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const adminWithoutTill = path.startsWith("/till/admin") && pos.ctx?.user.is_ops;
 
   useEffect(() => {
-    if (!pos.loading && !pos.session) router.replace("/login/?next=/till/");
+    if (!pos.loading && !pos.session) router.replace(tillLogin());
   }, [pos.loading, pos.session, router]);
 
   if (pos.loading || !pos.session) return <Splash><Spinner className="h-8 w-8" /></Splash>;
@@ -165,9 +166,9 @@ export function Shell({ children }: { children: ReactNode }) {
                   <RiUserSharedLine className="h-4 w-4 lg:hidden" />
                 </button>
               )}
-              <Link href={HUB_HOME} title="Exit till mode and go back to the Partner Hub" aria-label="Exit till"
+              <Link href={HUB_HOME} title="Exit till mode and go back to Frido CDN" aria-label="Exit till"
                 className="flex h-11 items-center gap-2 rounded-md px-3 text-sm font-medium text-n500 hover:bg-white/10 hover:text-white">
-                <RiApps2Line className="h-5 w-5" /><span className="hidden xl:inline">Hub</span></Link>
+                <RiApps2Line className="h-5 w-5" /><span className="hidden xl:inline">Frido CDN</span></Link>
               <button onClick={() => pos.signOut()} title="Sign out this device" aria-label="Sign out"
                 className="flex h-11 w-11 items-center justify-center rounded-md text-n500 hover:bg-white/10 hover:text-white"><RiLogoutBoxRLine className="h-5 w-5" /></button>
             </div>
@@ -206,7 +207,7 @@ export function Shell({ children }: { children: ReactNode }) {
         {needStaff && (
           <div className="-mt-2 mb-3 flex flex-wrap items-center justify-between gap-2 text-xs text-n800">
             <span>Device signed in as {ctx.user.email}.</span>
-            <Link href={HUB_HOME} className="font-semibold text-ink underline">Back to Partner Hub</Link>
+            <Link href={HUB_HOME} className="font-semibold text-ink underline">Back to Frido CDN</Link>
           </div>
         )}
       </PinPad>

@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
-import { rpc, sb, RpcError } from "./supabase";
+import { rpc, sb, tillLogin, RpcError } from "./supabase";
 import type { PosContext, Register, StaffSession } from "./types";
 
 /**
@@ -159,7 +159,7 @@ export function PosProvider({ children }: { children: ReactNode }) {
       if (staff) await rpc("pos_pin_logout", { p_token: staff.token }).catch(() => {});
       setStaff(null);
       await sb().auth.signOut();
-      location.href = "/login/?next=/till/";
+      location.href = tillLogin(ctx?.user.is_ops);
     },
   };
   return <PosCtx.Provider value={value}>{children}</PosCtx.Provider>;

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Frido Partner Hub",
+  title: "Frido CDN · Frido Care Distribution Network",
   description: "Stock, requests, approvals and fulfilment across Frido retailers, super stockists and stores",
 };
 

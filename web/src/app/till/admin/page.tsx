@@ -137,7 +137,7 @@ function Staff() {
           {(ctx.user.is_ops || s.pos_role === "cashier") && <Button size="sm" variant="secondary" onClick={() => { setEdit(s); setPin(""); setErr(null); }}>Set PIN</Button>}
         </li>
       ))}</ul>
-      <p className="mt-3 text-xs text-n800">New people get a Partner Hub login first (one per person, never a shared counter account). Frido ops then add them here with a role.</p>
+      <p className="mt-3 text-xs text-n800">New people get a Frido CDN login first (one per person, never a shared counter account). Frido ops then add them here with a role.</p>
       {ctx?.user.pos_role && (
         <div className="mt-6 flex flex-wrap items-end gap-2 border-t border-n300 pt-4">
           <Field label="My current PIN"><Input type="password" inputMode="numeric" maxLength={6} value={old} onChange={(e) => setOld(e.target.value)} /></Field>
@@ -160,7 +160,7 @@ function Staff() {
 
 const FRIDO_ROLES = ["super_admin", "admin", "ops", "manager"];
 
-/** Frido ops add a Partner Hub login to this clinic's POS staff (or as a Frido approver) with a role and PIN. */
+/** Frido ops add a Frido CDN login to this clinic's POS staff (or as a Frido approver) with a role and PIN. */
 function AddStaff() {
   const { ctx, facilityId, call, refresh } = usePos();
   const toast = useToast();
@@ -189,9 +189,9 @@ function AddStaff() {
   return (
     <div className="mt-6 border-t border-n300 pt-4">
       <h3 className="mb-1 font-semibold">Add a person</h3>
-      <p className="mb-3 text-xs text-n800">Clinic staff need a Partner Hub login assigned to {ctx?.facility?.name ?? "this clinic"} first (Hub → Users). Frido super admins, admins and managers join as POS admins: they can open the till and sell, and approve above the manager limit and late returns.</p>
+      <p className="mb-3 text-xs text-n800">Clinic staff need a Frido CDN login assigned to {ctx?.facility?.name ?? "this clinic"} first (Frido CDN → Users). Frido super admins, admins and managers join as POS admins: they can open the till and sell, and approve above the manager limit and late returns.</p>
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Partner Hub user">
+        <Field label="Frido CDN user">
           <Select value={who} onChange={(e) => { setWho(e.target.value); setName(""); }}>
             <option value="">Choose…</option>
             {eligible.map((p) => <option key={p.id} value={p.id}>{p.full_name ?? p.email} · {p.role.replace("_", " ")}</option>)}
@@ -221,7 +221,7 @@ function Health() {
   }, [facilityId]);
   return rows.length === 0 ? <Empty icon={<RiCheckLine />} title="Every SKU in the assortment can be sold" /> : (
     <>
-      <Alert tone="yellow" className="mb-3">These SKUs are in the clinic&apos;s assortment but can&apos;t be invoiced until Frido ops fix them in the Partner Hub: a GST invoice needs a selling price (MSP), an HSN code and a valid GST rate.</Alert>
+      <Alert tone="yellow" className="mb-3">These SKUs are in the clinic&apos;s assortment but can&apos;t be invoiced until Frido ops fix them in Frido CDN: a GST invoice needs a selling price (MSP), an HSN code and a valid GST rate.</Alert>
       <ul className="divide-y divide-n300">{rows.map((i) => (
         <li key={i.sku} className="flex flex-wrap items-center gap-3 py-3 text-sm">
           <RiErrorWarningLine className="h-5 w-5 text-red-a" />
@@ -297,7 +297,7 @@ function Setup() {
 const ALL_MODES: PayMode[] = ["cash", "upi_static", "upi_razorpay", "card_edc", "bank_transfer"];
 const seriesFrom = (code: string, suffix: string) => (code.replace(/[^A-Z0-9]/g, "").slice(0, 3) + suffix).padEnd(4, "X");
 
-/** First-time setup for a Partner Hub facility: invoicing entity (Decision 1), series codes, payment modes, first till. */
+/** First-time setup for a Frido CDN facility: invoicing entity (Decision 1), series codes, payment modes, first till. */
 function Onboard() {
   const { ctx, call, setFacility } = usePos();
   const toast = useToast();
@@ -376,7 +376,7 @@ function Onboard() {
     <div className="flex flex-col gap-5">
       <div>
         <h3 className="font-semibold">Put a clinic on the POS</h3>
-        <p className="text-sm text-n800">Pick a Partner Hub facility, who invoices for it (Decision 1), its invoice series and how it takes payment. Staff and PINs come next, under Staff &amp; PINs.</p>
+        <p className="text-sm text-n800">Pick a Frido CDN facility, who invoices for it (Decision 1), its invoice series and how it takes payment. Staff and PINs come next, under Staff &amp; PINs.</p>
       </div>
       <Field label="Clinic / retailer">
         <Select value={fac} onChange={(ev) => pick(Number(ev.target.value))}>

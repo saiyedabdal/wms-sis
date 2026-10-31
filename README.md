@@ -1,4 +1,4 @@
-# Frido Partner Hub
+# Frido CDN (Frido Care Distribution Network)
 
 Stock management for Frido inventory held at retailers and clinics (first: Neuromatics, Baner), at super stockists (SS), and in Frido's own STF store (STF Area, ATP).
 Everything is tracked per **SKU**, per **facility**, per **bucket**.
@@ -40,9 +40,19 @@ Every movement is a row in `stock_ledger` (receipt, sale, count adjustment, buck
 - **Admin** – everything, plus user management
 - **Manager** – approves requests (currently Shernyl Rana)
 - **Ops** – all facilities: review requests, dispatch, facilities, item master, quarantine decisions
+- **Field sales team** – works in the retailers / SS they are assigned to (Facilities → Details → Assigned Frido team), with the same screens as that facility's staff
 - **Facility staff** – their own retailer / SS / store: receive, sell, count, issue, return, request stock; an SS also dispatches to its retailers
 
-Logins are created by an admin on the Users page. No email is sent: **Create login + get link** (or **Sign-in link** on an existing user) gives a one-time link to share; it opens a page to set a password. Anyone who signs up on their own stays inactive until an admin activates them.
+**Login pages** (one sign-in behind all of them, each audience sees only its own page):
+- `/login/` – Admin and Field sales
+- `/login/retailer/` – retailers (also `/login/Retailer`)
+- `/login/ss/` – super stockists (also `/login/SS`)
+
+The retailer and SS pages open the **onboarding form** for portal access: business details, point of contact, products they deal in, whether they keep stock (where, how it is tracked, who looks after it) or want Frido to maintain it. Applications wait on **Onboarding** (admins), where an admin approves or removes them. Approving creates the facility and a login with a temporary password; the person must choose their own password at first sign-in.
+
+**Approval email:** sent through [Resend](https://resend.com) once two Edge Function secrets are set in Supabase (Edge Functions → Secrets): `RESEND_API_KEY`, and `MAIL_FROM` such as `Frido CDN <cdn@myfrido.com>` on a domain verified in Resend. Until then the Onboarding page shows the approval message (with the temporary password) to copy and send yourself.
+
+Other logins are created by an admin on the Users page: **Create login + get link** (or **Sign-in link** on an existing user) gives a one-time link to share; it opens a page to set a password.
 
 ## Run locally
 

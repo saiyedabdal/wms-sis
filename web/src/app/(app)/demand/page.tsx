@@ -6,7 +6,7 @@ import { RiMagicLine } from "@remixicon/react";
 import { useApp } from "@/components/AppShell";
 import { Alert, Button, Card, Empty, Input, PageHeader, Select, Table, Td, Th } from "@/components/ui";
 import { supabaseBrowser } from "@/lib/supabase/client";
-import { facilityTypeLabel } from "@/lib/types";
+import { CATEGORIES, facilityTypeLabel } from "@/lib/types";
 import { dateTime, errMsg } from "@/lib/format";
 
 interface Suggestion {
@@ -36,7 +36,6 @@ interface Run {
 }
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-const CATEGORIES = ["Orthotics", "Cushions", "Pillows", "Insole", "Footwear", "Socks", "Mobility", "Wheelchairs", "Medical Cushions", "Ankle Support", "Health and wellness"];
 
 /** Step 5: weekly drafts from sales velocity, lead time and seasonality; ops review them in Approvals. */
 export default function DemandPage() {
